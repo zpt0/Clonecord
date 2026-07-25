@@ -15,3 +15,19 @@ export interface NotificationAction {
     type?: "default" | "danger";
     id?: string;
 }
+
+export interface CloneStats {
+    channelsCloned: number;
+    categoriesCloned: number;
+    rolesCloned: number;
+    emojisCloned: number;
+    stickersCloned: number;
+    soundboardCloned: number;
+    onboardingCloned: boolean;
+}
+
+export interface CloneFailure {
+    context: string;
+    name: string;
+    error: string;
+}

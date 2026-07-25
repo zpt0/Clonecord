@@ -210,6 +210,8 @@ export const CloneModal = ({
     const [targetGuildId, setTargetGuildId] = React.useState<string | null>(null);
     const [sourceStickersCount, setSourceStickersCount] = React.useState(0);
     const [sourceSoundsCount, setSourceSoundsCount] = React.useState(0);
+    const [targetChannelCount, setTargetChannelCount] = React.useState(0);
+    const [targetRoleCount, setTargetRoleCount] = React.useState(0);
 
     React.useEffect(() => {
         RestAPI.get({ url: `/guilds/${guild.id}/stickers` })
@@ -226,6 +228,20 @@ export const CloneModal = ({
             })
             .catch(() => {});
     }, [guild.id]);
+
+    React.useEffect(() => {
+        if (targetGuildId) {
+            const targetChannels = extractChannels(targetGuildId, true);
+            setTargetChannelCount(targetChannels.length);
+            const targetRoles = (GuildRoleStore.getSortedRoles(targetGuildId) || []).filter(
+                (r: any) => r.name !== "@everyone"
+            );
+            setTargetRoleCount(targetRoles.length);
+        } else {
+            setTargetChannelCount(0);
+            setTargetRoleCount(0);
+        }
+    }, [targetGuildId]);
 
     const canOnboarding = cloneChannels && cloneRoles;
 
@@ -368,10 +384,59 @@ export const CloneModal = ({
 
     const themeClass = getTheme() === Theme.Light ? "theme-light" : "theme-dark";
 
+    const guildIconUrl = guild.icon
+        ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64`
+        : null;
+
+    const sourceChannelCount = cloneChannels ? extractChannels(guild.id, true).length : 0;
+    const sourceRoleCount = cloneRoles
+        ? (GuildRoleStore.getSortedRoles(guild.id) || []).filter((r: any) => r.name !== "@everyone")
+              .length
+        : 0;
+
+    const isOverwrite = !!targetGuildId && !resumeMode;
+    const isResume = !!targetGuildId && resumeMode;
+
+    const channelsToCreate = isOverwrite
+        ? sourceChannelCount
+        : isResume
+          ? Math.max(0, sourceChannelCount - targetChannelCount)
+          : 0;
+    const channelsToDelete = isOverwrite ? targetChannelCount : 0;
+    const rolesToCreate = isOverwrite
+        ? sourceRoleCount
+        : isResume
+          ? Math.max(0, sourceRoleCount - targetRoleCount)
+          : 0;
+    const rolesToDelete = isOverwrite ? targetRoleCount : 0;
+
     return (
         <ModalRoot {...props} className={themeClass}>
             <ModalHeader>
-                <span className="cc-modal-title">Clone Server: {guild.name}</span>
+                <div className="cc-modal-guild-header">
+                    {guildIconUrl ? (
+                        <img
+                            src={guildIconUrl}
+                            alt=""
+                            className="cc-modal-guild-icon"
+                            width={40}
+                            height={40}
+                        />
+                    ) : (
+                        <div className="cc-modal-guild-icon cc-modal-guild-icon-placeholder">
+                            {guild.name.charAt(0).toUpperCase()}
+                        </div>
+                    )}
+                    <div className="cc-modal-guild-info">
+                        <span className="cc-modal-title">Clone Server: {guild.name}</span>
+                        <div className="cc-modal-stats-row">
+                            <span className="cc-modal-stat-badge">
+                                # {sourceChannelCount} channels
+                            </span>
+                            <span className="cc-modal-stat-badge">@ {sourceRoleCount} roles</span>
+                        </div>
+                    </div>
+                </div>
             </ModalHeader>
 
             <ModalContent>
@@ -418,6 +483,49 @@ export const CloneModal = ({
                             >
                                 Resume mode: Only missing items will be added, nothing will be
                                 deleted.
+                            </div>
+                        )}
+                        {targetGuildId && isOverwrite && (
+                            <div className="cc-modal-diff-badge">
+                                {channelsToCreate > 0 && (
+                                    <span className="cc-modal-diff-positive">
+                                        +{channelsToCreate} channels
+                                    </span>
+                                )}
+                                {channelsToDelete > 0 && (
+                                    <span className="cc-modal-diff-negative">
+                                        -{channelsToDelete} channels
+                                    </span>
+                                )}
+                                {rolesToCreate > 0 && (
+                                    <span className="cc-modal-diff-positive">
+                                        +{rolesToCreate} roles
+                                    </span>
+                                )}
+                                {rolesToDelete > 0 && (
+                                    <span className="cc-modal-diff-negative">
+                                        -{rolesToDelete} roles
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        {targetGuildId && isResume && (
+                            <div className="cc-modal-diff-badge">
+                                {channelsToCreate > 0 && (
+                                    <span className="cc-modal-diff-positive">
+                                        +{channelsToCreate} channels to add
+                                    </span>
+                                )}
+                                {rolesToCreate > 0 && (
+                                    <span className="cc-modal-diff-positive">
+                                        +{rolesToCreate} roles to add
+                                    </span>
+                                )}
+                                {channelsToCreate === 0 && rolesToCreate === 0 && (
+                                    <span className="cc-modal-diff-neutral">
+                                        All items already exist
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>

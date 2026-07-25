@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0]
+
+- Post-clone summary notification showing cloned items count and failures
+- Retry button for failed items directly from the summary notification
+- Source server icon thumbnail displayed in the CloneModal header
+- Channel and role counts shown as badges in the CloneModal
+- Diff preview showing channel/role differences between source and target servers
+- Optimized `escapeHtml` utility to use string-based approach instead of DOM
+- Voice channel bitrate and user_limit now properly tracked per boost tier
+
 ## [1.0.0]
 
 - Clone channels (text, voice, announcement, stage, forum, media, categories) with permission overwrites

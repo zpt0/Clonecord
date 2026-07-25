@@ -567,3 +567,106 @@
 .theme-light .cc-modal-note-box strong {
     color: #060607 !important;
 }
+
+/* ─── Modal Guild Header ──────────────────────────────────── */
+.cc-modal-guild-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cc-modal-guild-icon {
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.cc-modal-guild-icon-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #5865f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+}
+
+.cc-modal-guild-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.cc-modal-stats-row {
+    display: flex;
+    gap: 8px;
+}
+
+.cc-modal-stat-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.theme-dark .cc-modal-stat-badge {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.theme-light .cc-modal-stat-badge {
+    background: rgba(0, 0, 0, 0.05);
+    color: rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Modal Diff Badge ────────────────────────────────────── */
+.cc-modal-diff-badge {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.cc-modal-diff-positive,
+.cc-modal-diff-negative,
+.cc-modal-diff-neutral {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.cc-modal-diff-positive {
+    background: rgba(67, 181, 129, 0.15);
+    color: #43b581;
+}
+
+.cc-modal-diff-negative {
+    background: rgba(240, 71, 71, 0.15);
+    color: #f04747;
+}
+
+.cc-modal-diff-neutral {
+    background: rgba(250, 166, 26, 0.15);
+    color: #faa61a;
+}
+
+.theme-light .cc-modal-diff-positive {
+    background: rgba(67, 181, 129, 0.12);
+    color: #1a7e4b;
+}
+
+.theme-light .cc-modal-diff-negative {
+    background: rgba(240, 71, 71, 0.12);
+    color: #c03537;
+}
+
+.theme-light .cc-modal-diff-neutral {
+    background: rgba(250, 166, 26, 0.12);
+    color: #b5851a;
+}

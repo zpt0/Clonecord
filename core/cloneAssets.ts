@@ -116,6 +116,11 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
                         new Error(`CDN returned ${response.status}`),
                         sticker.name
                     );
+                    state.failedItems.push({
+                        context: "Sticker",
+                        name: sticker.name,
+                        error: `CDN returned ${response.status}`,
+                    });
                     continue;
                 }
 
@@ -172,6 +177,11 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
                             (stickersProgressEnd - stickersProgressStart)
                 );
             } catch (e) {
+                state.failedItems.push({
+                    context: "Sticker",
+                    name: sticker.name,
+                    error: (e as Error)?.message || String(e),
+                });
                 handleCloneError("Sticker", e, sticker.name);
                 step++;
             }
@@ -288,6 +298,11 @@ export async function cloneSoundboard(ctx: CloneContext): Promise<number> {
                         new Error(`CDN returned ${response.status}`),
                         sound.name
                     );
+                    state.failedItems.push({
+                        context: "Soundboard",
+                        name: sound.name,
+                        error: `CDN returned ${response.status}`,
+                    });
                     step++;
                     continue;
                 }
@@ -331,6 +346,11 @@ export async function cloneSoundboard(ctx: CloneContext): Promise<number> {
                             (soundboardProgressEnd - soundboardProgressStart)
                 );
             } catch (e) {
+                state.failedItems.push({
+                    context: "Soundboard",
+                    name: sound.name,
+                    error: (e as Error)?.message || String(e),
+                });
                 handleCloneError("Soundboard", e, sound.name);
                 step++;
             }

@@ -1,6 +1,6 @@
 import { state } from "../store";
 import { escapeHtml } from "./helpers";
-import { NotificationAction } from "../types";
+import { NotificationAction, CloneStats, CloneFailure } from "../types";
 import { RestAPI } from "@webpack/common";
 
 export function formatElapsed(ms: number): string {
@@ -291,3 +291,92 @@ export const updateWithTime = (msg: string, percent: number) => {
     if (!state.mainProgressNotificationId) return;
     updateMainProgress(state.mainProgressNotificationId, msg, percent);
 };
+
+export function showCloneSummary(stats: CloneStats, failures: CloneFailure[]): void {
+    const hasFailures = failures.length > 0;
+
+    const summaryParts: string[] = [];
+    if (stats.channelsCloned > 0) summaryParts.push(`${stats.channelsCloned} channels`);
+    if (stats.categoriesCloned > 0) summaryParts.push(`${stats.categoriesCloned} categories`);
+    if (stats.rolesCloned > 0) summaryParts.push(`${stats.rolesCloned} roles`);
+    if (stats.emojisCloned > 0) summaryParts.push(`${stats.emojisCloned} emojis`);
+    if (stats.stickersCloned > 0) summaryParts.push(`${stats.stickersCloned} stickers`);
+    if (stats.soundboardCloned > 0) summaryParts.push(`${stats.soundboardCloned} sounds`);
+    if (stats.onboardingCloned) summaryParts.push("onboarding");
+
+    const summaryText = summaryParts.length > 0 ? summaryParts.join(", ") : "No items were cloned";
+
+    const failureText = hasFailures
+        ? `${failures.length} item${failures.length > 1 ? "s" : ""} failed`
+        : "";
+
+    const title = hasFailures ? "Clone Completed with Errors" : "Clone Summary";
+    const body = hasFailures ? `${summaryText}\n${failureText}` : summaryText;
+    const type = hasFailures ? "error" : "success";
+
+    const actions: NotificationAction[] = [];
+
+    if (hasFailures) {
+        actions.push({
+            label: "View Errors",
+            type: "default",
+            onClick: (id: string) => {
+                const errorList = failures
+                    .map((f) => `\u2022 [${f.context}] ${f.name}: ${f.error}`)
+                    .join("\n");
+                closePill(id);
+                notify("Failed Items", errorList, "error", 12000);
+            },
+        });
+        actions.push({
+            label: "Retry Failed",
+            type: "default",
+            onClick: async (id: string) => {
+                closePill(id);
+                notify("Retrying", "Re-attempting failed items...", "info", 5000);
+                await retryFailedItems(failures);
+            },
+        });
+    }
+
+    const notificationId = notify(title, body, type, 10000, actions);
+
+    const pill = document.getElementById(notificationId);
+    if (pill) {
+        pill.classList.add("always-expanded");
+    }
+}
+
+async function retryFailedItems(failures: CloneFailure[]): Promise<void> {
+    for (const failure of failures) {
+        try {
+            if (failure.context === "Channel") {
+                const targetGuildId = state.cloneStats ? state.sourceGuildId : null;
+                if (targetGuildId) {
+                    await RestAPI.post({
+                        url: `/guilds/${targetGuildId}/channels`,
+                        body: { name: failure.name, type: 0 },
+                    });
+                }
+            } else if (failure.context === "Role") {
+                const targetGuildId = state.cloneStats ? state.sourceGuildId : null;
+                if (targetGuildId) {
+                    await RestAPI.post({
+                        url: `/guilds/${targetGuildId}/roles`,
+                        body: { name: failure.name, permissions: "0" },
+                    });
+                }
+            }
+            notify("Retry Success", `${failure.context}: ${failure.name}`, "success", 4000);
+        } catch (e) {
+            notify(
+                "Retry Failed",
+                `${failure.context}: ${failure.name} - ${(e as Error)?.message || "Unknown error"}`,
+                "error",
+                6000
+            );
+        }
+    }
+
+    notify("Retry Complete", "Finished retrying failed items", "info", 5000);
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { sleep, randomDelay, compareVersions, arrayBufferToBase64 } from "../helpers";
+import { sleep, randomDelay, compareVersions, arrayBufferToBase64, escapeHtml } from "../helpers";
 
 describe("sleep", () => {
     beforeEach(() => {
@@ -89,5 +89,41 @@ describe("arrayBufferToBase64", () => {
         const result = arrayBufferToBase64(buffer);
         expect(typeof result).toBe("string");
         expect(result.length).toBeGreaterThan(0);
+    });
+});
+
+describe("escapeHtml", () => {
+    it("escapes ampersands", () => {
+        expect(escapeHtml("a & b")).toBe("a &amp; b");
+    });
+
+    it("escapes less-than signs", () => {
+        expect(escapeHtml("a < b")).toBe("a &lt; b");
+    });
+
+    it("escapes greater-than signs", () => {
+        expect(escapeHtml("a > b")).toBe("a &gt; b");
+    });
+
+    it("escapes double quotes", () => {
+        expect(escapeHtml('a "b" c')).toBe("a &quot;b&quot; c");
+    });
+
+    it("escapes single quotes", () => {
+        expect(escapeHtml("a 'b' c")).toBe("a &#039;b&#039; c");
+    });
+
+    it("escapes multiple special characters", () => {
+        expect(escapeHtml('<script>alert("xss")</script>')).toBe(
+            "&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;"
+        );
+    });
+
+    it("returns empty string for empty input", () => {
+        expect(escapeHtml("")).toBe("");
+    });
+
+    it("returns string unchanged when no special characters", () => {
+        expect(escapeHtml("Hello World 123")).toBe("Hello World 123");
     });
 });

@@ -7,6 +7,7 @@ import {
     completeMainProgress,
     updateProgress,
     updateWithTime,
+    showCloneSummary,
 } from "../utils/notifications";
 
 import {
@@ -61,6 +62,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
     state.abortController = new AbortController();
     state.emojiIdMap = {};
     state.cloneErrors = [];
+    state.failedItems = [];
+    state.cloneStats = null;
     state.sourceGuildName = sourceGuild.name;
     state.sourceGuildId = sourceGuild.id;
     state.isExistingServer = !!options.targetGuildId;
@@ -266,39 +269,50 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         throwIfCancelled();
 
+        let emojisCloned = 0;
         if (options.cloneChannels || options.cloneRoles || options.cloneOnboarding) {
-            await extractAndCloneEmojis(ctx);
+            const emojiResult = await extractAndCloneEmojis(ctx);
+            emojisCloned = emojiResult.emojisCloned;
         }
 
         throwIfCancelled();
 
+        let stickersCloned = 0;
         if (options.cloneStickers) {
             updateWithTime("Cloning stickers...", stickersProgressStart);
-            await cloneStickers(ctx);
+            stickersCloned = await cloneStickers(ctx);
         }
 
         throwIfCancelled();
 
+        let soundboardCloned = 0;
         if (options.cloneSoundboard) {
             updateWithTime("Cloning soundboard...", soundboardProgressStart);
-            await cloneSoundboard(ctx);
+            soundboardCloned = await cloneSoundboard(ctx);
         }
 
         throwIfCancelled();
 
+        let rolesCloned = 0;
         if (options.cloneRoles) {
             updateWithTime("Cloning roles...", rolesProgressStart);
-            await cloneRoles(ctx);
+            const rolesResult = await cloneRoles(ctx);
+            rolesCloned = rolesResult.rolesCloned;
         }
 
         throwIfCancelled();
 
+        let channelsCloned = 0;
+        let categoriesCloned = 0;
         if (options.cloneChannels) {
-            await cloneChannels(ctx);
+            const channelsResult = await cloneChannels(ctx);
+            channelsCloned = channelsResult.channelsCloned;
+            categoriesCloned = channelsResult.categoriesCloned;
         }
 
         throwIfCancelled();
 
+        let onboardingCloned = false;
         if (options.cloneChannels || options.cloneRoles) {
             updateWithTime("Applying settings...", channelsProgressEnd);
             await cloneSettings(ctx);
@@ -308,6 +322,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         if (options.cloneOnboarding) {
             await cloneOnboarding(ctx);
+            onboardingCloned = true;
         }
 
         throwIfCancelled();
@@ -334,9 +349,21 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             NavigationRouterTransitionToGuild(newGuildId);
         }
 
+        state.cloneStats = {
+            channelsCloned,
+            categoriesCloned,
+            rolesCloned,
+            emojisCloned,
+            stickersCloned,
+            soundboardCloned,
+            onboardingCloned,
+        };
+
         updateProgress(100);
 
         completeMainProgress(pillId, `${sourceGuild.name} cloned successfully!`, true);
+
+        showCloneSummary(state.cloneStats, state.failedItems);
     } catch (e: any) {
         if (e?.message === "Cancelled") {
             if (state.mainProgressNotificationId) {
@@ -361,6 +388,10 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             );
         } else {
             notify("Clone Failed", errorMsg, "error", 8000);
+        }
+
+        if (state.cloneStats) {
+            showCloneSummary(state.cloneStats, state.failedItems);
         }
     } finally {
         state.isCloning = false;

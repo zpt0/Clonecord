@@ -1,4 +1,4 @@
-import { CloneOptions } from "./types";
+import { CloneOptions, CloneStats, CloneFailure } from "./types";
 
 export const state = {
     isCloning: false,
@@ -11,6 +11,8 @@ export const state = {
     cloneStartTime: null as number | null,
     timerInterval: null as ReturnType<typeof setInterval> | null,
     cloneErrors: [] as string[],
+    cloneStats: null as CloneStats | null,
+    failedItems: [] as CloneFailure[],
     sourceGuildName: "" as string,
     sourceGuildId: "" as string,
     isExistingServer: false as boolean,

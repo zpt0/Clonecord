@@ -6,8 +6,18 @@ import { state } from "../store";
 import { handleCloneError } from "../utils/errorHandler";
 import { CloneContext } from "./types";
 
-export async function cloneChannels(ctx: CloneContext): Promise<number> {
+export interface CloneChannelsResult {
+    channelsCloned: number;
+    categoriesCloned: number;
+    channelsFailed: number;
+    categoriesFailed: number;
+}
+
+export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsResult> {
     let channelsFailed = 0;
+    let categoriesFailed = 0;
+    let channelsCloned = 0;
+    let categoriesCloned = 0;
     const {
         sourceGuild,
         fullGuildData,
@@ -114,6 +124,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<number> {
             }
 
             catStored++;
+            categoriesCloned++;
             const progress =
                 channelsProgressStart +
                 (catStored / Math.max(categoriesToCreate.length, 1)) *
@@ -123,7 +134,12 @@ export async function cloneChannels(ctx: CloneContext): Promise<number> {
                 progress
             );
         } catch (e) {
-            channelsFailed++;
+            categoriesFailed++;
+            state.failedItems.push({
+                context: "Category",
+                name: cat.name,
+                error: (e as Error)?.message || String(e),
+            });
             handleCloneError("Category", e, cat.name);
         }
     });
@@ -377,6 +393,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<number> {
             }
 
             chStored++;
+            channelsCloned++;
             const progress =
                 channelsProgressStart +
                 (channelsProgressEnd - channelsProgressStart) * 0.2 +
@@ -394,11 +411,16 @@ export async function cloneChannels(ctx: CloneContext): Promise<number> {
                 return;
             }
             channelsFailed++;
+            state.failedItems.push({
+                context: "Channel",
+                name: ch.name,
+                error: (e as Error)?.message || String(e),
+            });
             handleCloneError("Channel", e, ch.name);
         }
     });
 
     await Promise.all(channelPromises);
 
-    return channelsFailed;
+    return { channelsCloned, categoriesCloned, channelsFailed, categoriesFailed };
 }

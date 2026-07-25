@@ -6,7 +6,17 @@ import { state } from "../store";
 import { handleCloneError } from "../utils/errorHandler";
 import { CloneContext } from "./types";
 
-export async function extractAndCloneEmojis(ctx: CloneContext) {
+export interface CloneRolesResult {
+    rolesCloned: number;
+    rolesFailed: number;
+}
+
+export interface CloneEmojisResult {
+    emojisCloned: number;
+    emojisFailed: number;
+}
+
+export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmojisResult> {
     const {
         sourceGuild,
         fullGuildData,
@@ -17,6 +27,8 @@ export async function extractAndCloneEmojis(ctx: CloneContext) {
         taskQueue,
     } = ctx;
     const customEmojiIds = new Set<string>();
+    let emojisCloned = 0;
+    let emojisFailed = 0;
 
     const addEmojisFromText = (text: string | null | undefined) => {
         if (!text) return;
@@ -137,12 +149,19 @@ export async function extractAndCloneEmojis(ctx: CloneContext) {
                         );
 
                         emojiStep++;
+                        emojisCloned++;
                         updateWithTime(
                             `Cloned emoji ${emoji.name} (${emojiStep}/${emojisToClone.length})...`,
                             20 + (emojiStep / emojisToClone.length) * 5
                         );
                     }
                 } catch (e) {
+                    emojisFailed++;
+                    state.failedItems.push({
+                        context: "Emoji",
+                        name: emoji.name,
+                        error: (e as Error)?.message || String(e),
+                    });
                     handleCloneError("Emoji", e, emoji.name);
                 }
             });
@@ -152,10 +171,13 @@ export async function extractAndCloneEmojis(ctx: CloneContext) {
             console.warn("[Clonecord] Failed to fetch source emojis for extraction:", e);
         }
     }
+
+    return { emojisCloned, emojisFailed };
 }
 
-export async function cloneRoles(ctx: CloneContext): Promise<number> {
+export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
     let rolesFailed = 0;
+    let rolesCloned = 0;
     const {
         sourceGuild,
         newGuildId,
@@ -313,6 +335,7 @@ export async function cloneRoles(ctx: CloneContext): Promise<number> {
             }
 
             roleStep++;
+            rolesCloned++;
             updateWithTime(
                 `${actionLabel} role ${roleStep}/${rolesToCreate.length}: ${role.name}`,
                 rolesProgressStart +
@@ -327,6 +350,11 @@ export async function cloneRoles(ctx: CloneContext): Promise<number> {
                 return;
             }
             rolesFailed++;
+            state.failedItems.push({
+                context: "Role",
+                name: role.name,
+                error: (e as Error)?.message || String(e),
+            });
             handleCloneError("Role", e, role.name);
         }
     });
@@ -357,5 +385,5 @@ export async function cloneRoles(ctx: CloneContext): Promise<number> {
         if (skipBtn) skipBtn.style.display = "none";
     }
 
-    return rolesFailed;
+    return { rolesCloned, rolesFailed };
 }
