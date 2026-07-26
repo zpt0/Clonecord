@@ -137,6 +137,6 @@ jobs:
               uses: softprops/action-gh-release@v2
               with:
                    name: "${{ steps.tag.outputs.tag }}"
-                  body: ${{ steps.body.outputs.body }}
-                  files: ${{ steps.build.outputs.zip_name }}
-                  tag_name: ${{ steps.tag.outputs.tag }}
+                   body: ${{ steps.body.outputs.body }}
+                   files: ${{ steps.build.outputs.zip_name }}
+                   tag_name: ${{ steps.tag.outputs.tag }}
