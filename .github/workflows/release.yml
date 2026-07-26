@@ -80,8 +80,8 @@ jobs:
                     PREV_TAG=""
                   fi
 
-                  BODY="## ${TAG} | Release\n\n"
-                  BODY+="**Changes:**\n"
+                   BODY="### What's Changed\n\n"
+                   BODY+="**Changes:**\n\n"
 
                   if [ -n "$PREV_TAG" ]; then
                     COMMITS=$(git log "${PREV_TAG}..${TAG}" --pretty=format:"- %s" --no-merges)
@@ -136,7 +136,7 @@ jobs:
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v2
               with:
-                  name: "${{ steps.tag.outputs.tag }} | Release"
+                   name: "${{ steps.tag.outputs.tag }}"
                   body: ${{ steps.body.outputs.body }}
                   files: ${{ steps.build.outputs.zip_name }}
                   tag_name: ${{ steps.tag.outputs.tag }}
