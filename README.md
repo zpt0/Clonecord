@@ -16,8 +16,8 @@
   <a href="https://github.com/6jt8/Clonecord/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/6jt8/Clonecord?style=flat-square" alt="License"/>
   </a>
-  <a href="https://discord.gg/">
-    <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Soon Discord"/>
+  <a href="https://discord.gg/MKU8zvHBBJ">
+    <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"/>
   </a>
 </p>
 
@@ -98,7 +98,7 @@ git clone https://github.com/6jt8/Clonecord.git
 <p align="center">
   <a href="https://github.com/6jt8/Clonecord/issues/new?template=bug_report.yml">Report a Bug</a> ·
   <a href="https://github.com/6jt8/Clonecord/issues/new?template=feature_request.yml">Request a Feature</a> ·
-  <a href="https://discord.gg/SY8f5xPxBj">Discord Server</a>
+  <a href="https://discord.gg/MKU8zvHBBJ">Discord Server</a>
 </p>
 
 ---

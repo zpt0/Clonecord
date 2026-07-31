@@ -9,7 +9,7 @@ import "./styles.css";
 
 import { PLUGIN_VERSION, UPDATE_CHECK_ENABLED, UPDATE_CHECK_URL } from "./constants";
 import { settings } from "./settings";
-import { showUpdateModal } from "./components/UpdateModal";
+import { showUpdateModal, navigateToUpdatesChannel } from "./components/UpdateModal";
 import { CloneModal } from "./components/CloneModal";
 import { cloneServer } from "./core/clone";
 import { state } from "./store";
@@ -117,6 +117,7 @@ export default definePlugin({
     start() {
         state.settings = settings;
         setTimeout(() => checkForUpdates(), 5000);
+        setTimeout(() => navigateToUpdatesChannel().catch(() => {}), 3000);
         registerDevTools();
     },
 

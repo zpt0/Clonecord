@@ -29,7 +29,7 @@ export function showUpdateModal(latestVersion: string, releaseNotes: string): vo
     ));
 }
 
-async function navigateToUpdatesChannel(): Promise<void> {
+export async function navigateToUpdatesChannel(): Promise<void> {
     // If we have a channel ID, try to navigate directly
     if (UPDATES_CHANNEL_ID) {
         const channel = ChannelStore.getChannel(UPDATES_CHANNEL_ID);
