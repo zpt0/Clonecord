@@ -110,7 +110,7 @@ const guildContextMenuPatch: NavContextMenuPatchCallback = (
 export default definePlugin({
     name: "Clonecord",
     description: "Clone servers with channels, roles, permissions, and community features",
-    authors: [{ name: "6jt8", id: 344171244955893760n }],
+    authors: [{ name: "zpt0.dev", id: 299670891875270656n }],
     tags: ["Utility", "Customisation"],
     settings,
 
