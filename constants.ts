@@ -1,5 +1,5 @@
 export const PLUGIN_VERSION = "1.1.1";
-export const GITHUB_REPO = "6jt8/Clonecord";
+export const GITHUB_REPO = "zpt0/Clonecord";
 export const UPDATE_CHECK_URL = GITHUB_REPO
     ? `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
     : "";

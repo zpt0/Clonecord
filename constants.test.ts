@@ -17,17 +17,17 @@ describe("constants", () => {
     });
 
     it("has GITHUB_REPO set", () => {
-        expect(GITHUB_REPO).toBe("6jt8/Clonecord");
+        expect(GITHUB_REPO).toBe("zpt0/Clonecord");
     });
 
     it("derives UPDATE_CHECK_URL from GITHUB_REPO", () => {
         expect(UPDATE_CHECK_URL).toBe(
-            "https://api.github.com/repos/6jt8/Clonecord/releases/latest"
+            "https://api.github.com/repos/zpt0/Clonecord/releases/latest"
         );
     });
 
     it("derives GITHUB_RELEASE_URL from GITHUB_REPO", () => {
-        expect(GITHUB_RELEASE_URL).toBe("https://github.com/6jt8/Clonecord/releases/latest");
+        expect(GITHUB_RELEASE_URL).toBe("https://github.com/zpt0/Clonecord/releases/latest");
     });
 
     it("enables update checks when GITHUB_REPO is set", () => {

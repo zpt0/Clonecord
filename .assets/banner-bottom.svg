@@ -14,7 +14,7 @@
 
   <!-- Center content -->
   <text x="600" y="55" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="20" font-weight="600" fill="#ffffff" text-anchor="middle" letter-spacing="3">CLONECORD</text>
-  <text x="600" y="82" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="13" fill="#555570" text-anchor="middle" letter-spacing="2">github.com/6jt8/Clonecord</text>
+  <text x="600" y="82" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="13" fill="#555570" text-anchor="middle" letter-spacing="2">github.com/zpt0/Clonecord</text>
 
   <!-- Bottom accent line -->
   <rect x="0" y="118" width="1200" height="2" fill="url(#g1)" opacity="0.5"/>

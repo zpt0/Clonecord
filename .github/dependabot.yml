@@ -8,5 +8,5 @@ updates:
       labels:
           - "dependencies"
       assignees:
-          - "6jt8"
+          - "zpt0"
       open-pull-requests-limit: 10

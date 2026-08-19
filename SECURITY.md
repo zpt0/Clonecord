@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in Clonecord, please report it through [GitHub's security advisory](https://github.com/6jt8/Clonecord/security/advisories/new). **Do not open a public issue for security vulnerabilities.**
+If you discover a security vulnerability in Clonecord, please report it through [GitHub's security advisory](https://github.com/zpt0/Clonecord/security/advisories/new). **Do not open a public issue for security vulnerabilities.**
 
 We'll respond as quickly as possible and work with you to understand and address the issue.
 

@@ -7,14 +7,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/6jt8/Clonecord/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/6jt8/Clonecord/ci.yml?branch=main&style=flat-square&logo=github&label=CI" alt="CI"/>
+  <a href="https://github.com/zpt0/Clonecord/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/zpt0/Clonecord/ci.yml?branch=main&style=flat-square&logo=github&label=CI" alt="CI"/>
   </a>
-  <a href="https://github.com/6jt8/Clonecord/releases">
-    <img src="https://img.shields.io/github/v/release/6jt8/Clonecord?style=flat-square&logo=github" alt="Release"/>
+  <a href="https://github.com/zpt0/Clonecord/releases">
+    <img src="https://img.shields.io/github/v/release/zpt0/Clonecord?style=flat-square&logo=github" alt="Release"/>
   </a>
-  <a href="https://github.com/6jt8/Clonecord/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/6jt8/Clonecord?style=flat-square" alt="License"/>
+  <a href="https://github.com/zpt0/Clonecord/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/zpt0/Clonecord?style=flat-square" alt="License"/>
   </a>
   <a href="https://discord.gg/MKU8zvHBBJ">
     <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"/>
@@ -72,7 +72,7 @@
 
 ```bash
 cd path/to/Vencord/src/userplugins
-git clone https://github.com/6jt8/Clonecord.git
+git clone https://github.com/zpt0/Clonecord.git
 ```
 
 </td></tr></table>
@@ -88,23 +88,23 @@ git clone https://github.com/6jt8/Clonecord.git
 <p align="center">See <a href="CONTRIBUTING.md">CONTRIBUTING.md</a> for setup instructions and guidelines.</p>
 
 <p align="center">
-  <a href="https://github.com/6jt8/Clonecord/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=6jt8/Clonecord" alt="Contributors"/>
+  <a href="https://github.com/zpt0/Clonecord/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=zpt0/Clonecord" alt="Contributors"/>
   </a>
 </p>
 
 <h2 align="center">Support</h2>
 
 <p align="center">
-  <a href="https://github.com/6jt8/Clonecord/issues/new?template=bug_report.yml">Report a Bug</a> ·
-  <a href="https://github.com/6jt8/Clonecord/issues/new?template=feature_request.yml">Request a Feature</a> ·
+  <a href="https://github.com/zpt0/Clonecord/issues/new?template=bug_report.yml">Report a Bug</a> ·
+  <a href="https://github.com/zpt0/Clonecord/issues/new?template=feature_request.yml">Request a Feature</a> ·
   <a href="https://discord.gg/MKU8zvHBBJ">Discord Server</a>
 </p>
 
 ---
 
 <p align="center">
-  <sub>Made with ❤️ by <a href="https://github.com/6jt8">6jt8</a></sub>
+  <sub>Made with ❤️ by <a href="https://github.com/zpt0">zpt0</a></sub>
 </p>
 
 <p align="center">

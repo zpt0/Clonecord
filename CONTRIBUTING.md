@@ -69,7 +69,7 @@ The `stubs/` directory provides type definitions for Vencord's internal APIs, so
 
 ## Reporting Issues
 
-Use the [Issue Templates](https://github.com/6jt8/Clonecord/issues/new/choose) when reporting bugs or requesting features.
+Use the [Issue Templates](https://github.com/zpt0/Clonecord/issues/new/choose) when reporting bugs or requesting features.
 
 ## Code of Conduct
 

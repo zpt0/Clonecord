@@ -43,7 +43,7 @@ an individual is officially representing the community in public spaces.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the project maintainer at the
-[GitHub Issues](https://github.com/6jt8/Clonecord/issues) page.
+[GitHub Issues](https://github.com/zpt0/Clonecord/issues) page.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
