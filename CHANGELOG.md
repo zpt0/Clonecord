@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2]
+
+- Dev dependency updates: eslint 10.9.1, typescript-eslint 8.68.0, @types/node 26.4.0, vitest 4.1.11, @vitest/coverage-v8 4.1.11
+- @vencord/discord-types held at 1.0.1 (1.0.2 pins peer @types/react to exactly 19.1.0)
+- No functional changes
+
 ## [1.1.0]
 
 - Post-clone summary notification showing cloned items count and failures
