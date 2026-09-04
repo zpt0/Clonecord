@@ -2,6 +2,7 @@ import { state } from "../store";
 import { escapeHtml } from "./helpers";
 import { NotificationAction, CloneStats, CloneFailure } from "../types";
 import { RestAPI } from "@webpack/common";
+import type { RateLimitStatus } from "./TaskQueue";
 
 export function formatElapsed(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);
@@ -9,6 +10,17 @@ export function formatElapsed(ms: number): string {
     const secs = totalSeconds % 60;
     if (mins === 0) return `${secs}s`;
     return `${mins}m ${secs}s`;
+}
+
+function formatEta(ms: number): string {
+    if (ms <= 0) return "";
+    const totalSeconds = Math.ceil(ms / 1000);
+    if (totalSeconds < 60) return `~${totalSeconds}s left`;
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    if (mins < 60) return secs > 0 ? `~${mins}m ${secs}s left` : `~${mins}m left`;
+    const hours = Math.floor(mins / 60);
+    return `~${hours}h ${mins % 60}m left`;
 }
 
 function startProgressTimer(notificationId: string) {
@@ -287,8 +299,54 @@ export function updateProgress(percent: number, message?: string) {
     }
 }
 
-export const updateWithTime = (msg: string, percent: number) => {
+export interface ThrottleProgressInfo {
+    status: RateLimitStatus;
+    percent: number;
+    remainingItems: number;
+}
+
+export function updateThrottledProgress(info: ThrottleProgressInfo) {
     if (!state.mainProgressNotificationId) return;
+    const { status, percent, remainingItems } = info;
+    const pill = document.getElementById(state.mainProgressNotificationId);
+    if (!pill || pill.classList.contains("completed")) return;
+
+    const bodyEl = pill.querySelector(".cloner-pill-body");
+    if (status.throttled) {
+        const msg =
+            `Rate limited — continuing in ~${status.throttledSecondsLeft}s` +
+            (status.currentConcurrency < status.maxConcurrency
+                ? ` (speed reduced ${status.maxConcurrency} → ${status.currentConcurrency})`
+                : "");
+        if (bodyEl) bodyEl.textContent = msg;
+    } else if (status.avgRequestMs > 0 && remainingItems > 0 && percent < 100) {
+        const etaMs =
+            (remainingItems * status.avgRequestMs) / Math.max(1, status.currentConcurrency);
+        const eta = formatEta(etaMs);
+        if (eta) {
+            const percentEl = pill.querySelector(".cloner-pill-percent");
+            if (percentEl && !percentEl.textContent?.includes("left")) {
+                percentEl.textContent = `${Math.min(100, Math.max(0, Math.round(percent)))}% • ${eta}`;
+            }
+        }
+    }
+}
+
+export const updateWithTime = (msg: string, percent: number, remainingItems?: number) => {
+    if (!state.mainProgressNotificationId) return;
+    const queue = state.taskQueue;
+    if (queue) {
+        const status = queue.getStatus();
+        if (status.throttled) {
+            updateThrottledProgress({ status, percent, remainingItems: remainingItems ?? 0 });
+            return;
+        }
+        updateMainProgress(state.mainProgressNotificationId, msg, percent);
+        if (remainingItems !== undefined && remainingItems > 0) {
+            updateThrottledProgress({ status, percent, remainingItems });
+        }
+        return;
+    }
     updateMainProgress(state.mainProgressNotificationId, msg, percent);
 };
 

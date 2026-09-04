@@ -70,6 +70,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
     state.optionsUsed = { ...options };
 
     const taskQueue = new TaskQueue(5);
+    state.taskQueue = taskQueue;
 
     try {
         const guild = GuildStore.getGuild(sourceGuild.id);
@@ -399,6 +400,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         state.mainProgressNotificationId = null;
         state.currentCloneGuildId = null;
         state.skipRolesCallback = null;
+        state.taskQueue = null;
     }
 }
 

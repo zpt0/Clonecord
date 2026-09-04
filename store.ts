@@ -1,4 +1,5 @@
 import { CloneOptions, CloneStats, CloneFailure } from "./types";
+import type { TaskQueue } from "./utils/TaskQueue";
 
 export const state = {
     isCloning: false,
@@ -7,6 +8,7 @@ export const state = {
     mainProgressNotificationId: null as string | null,
     currentCloneGuildId: null as string | null,
     skipRolesCallback: null as (() => void) | null,
+    taskQueue: null as TaskQueue | null,
     emojiIdMap: {} as Record<string, string>,
     cloneStartTime: null as number | null,
     timerInterval: null as ReturnType<typeof setInterval> | null,

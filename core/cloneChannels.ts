@@ -401,7 +401,8 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                     ((channelsProgressEnd - channelsProgressStart) * 0.8);
             updateWithTime(
                 `${actionLabel} channel ${chStored}/${remainingChannels.length}: ${ch.name}`,
-                progress
+                progress,
+                remainingChannels.length - chStored
             );
         } catch (e: any) {
             if (e?.rateLimitExhausted) {

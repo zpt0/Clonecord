@@ -152,7 +152,8 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
                         emojisCloned++;
                         updateWithTime(
                             `Cloned emoji ${emoji.name} (${emojiStep}/${emojisToClone.length})...`,
-                            20 + (emojiStep / emojisToClone.length) * 5
+                            20 + (emojiStep / emojisToClone.length) * 5,
+                            emojisToClone.length - emojiStep
                         );
                     }
                 } catch (e) {
@@ -340,7 +341,8 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
                 `${actionLabel} role ${roleStep}/${rolesToCreate.length}: ${role.name}`,
                 rolesProgressStart +
                     (roleStep / Math.max(rolesToCreate.length, 1)) *
-                        (rolesProgressEnd - rolesProgressStart)
+                        (rolesProgressEnd - rolesProgressStart),
+                rolesToCreate.length - roleStep
             );
         } catch (e: any) {
             if (e?.rateLimitExhausted) {

@@ -1,6 +1,17 @@
 import { sleep, randomDelay } from "./helpers";
 import { state } from "../store";
 
+export interface RateLimitStatus {
+    throttled: boolean;
+    throttledUntil: number;
+    throttledSecondsLeft: number;
+    consecutive429: number;
+    currentConcurrency: number;
+    maxConcurrency: number;
+    avgRequestMs: number;
+    completedRequests: number;
+}
+
 export class TaskQueue {
     private maxConcurrency: number;
     private currentConcurrency: number;
@@ -8,6 +19,8 @@ export class TaskQueue {
     private pausedUntil = 0;
     private consecutive429 = 0;
     private successCount = 0;
+    private completedRequests = 0;
+    private totalRequestMs = 0;
 
     private requestTimestamps: number[] = [];
     private static readonly WINDOW_MS = 5000;
@@ -19,6 +32,24 @@ export class TaskQueue {
     constructor(concurrency = 5) {
         this.maxConcurrency = concurrency;
         this.currentConcurrency = concurrency;
+    }
+
+    getStatus(): RateLimitStatus {
+        const now = Date.now();
+        const throttled = now < this.pausedUntil;
+        return {
+            throttled,
+            throttledUntil: this.pausedUntil,
+            throttledSecondsLeft: throttled ? Math.ceil((this.pausedUntil - now) / 1000) : 0,
+            consecutive429: this.consecutive429,
+            currentConcurrency: this.currentConcurrency,
+            maxConcurrency: this.maxConcurrency,
+            avgRequestMs:
+                this.completedRequests > 0
+                    ? Math.round(this.totalRequestMs / this.completedRequests)
+                    : 0,
+            completedRequests: this.completedRequests,
+        };
     }
 
     private async waitForRateLimitWindow(exitCondition?: () => boolean): Promise<void> {
@@ -76,7 +107,10 @@ export class TaskQueue {
 
                     await this.waitForRateLimitWindow(exitCondition);
 
+                    const startedAt = Date.now();
                     const result = await fn();
+                    this.totalRequestMs += Date.now() - startedAt;
+                    this.completedRequests++;
                     this.consecutive429 = 0;
 
                     this.successCount++;
