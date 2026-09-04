@@ -350,7 +350,11 @@ export const updateWithTime = (msg: string, percent: number, remainingItems?: nu
     updateMainProgress(state.mainProgressNotificationId, msg, percent);
 };
 
-export function showCloneSummary(stats: CloneStats, failures: CloneFailure[]): void {
+export function showCloneSummary(
+    stats: CloneStats,
+    failures: CloneFailure[],
+    gaps: { title: string; detail: string; howToFix: string }[] = []
+): void {
     const hasFailures = failures.length > 0;
 
     const summaryParts: string[] = [];
@@ -393,6 +397,20 @@ export function showCloneSummary(stats: CloneStats, failures: CloneFailure[]): v
                 closePill(id);
                 notify("Retrying", "Re-attempting failed items...", "info", 5000);
                 await retryFailedItems(failures);
+            },
+        });
+    }
+
+    if (gaps.length > 0) {
+        actions.push({
+            label: `Not Cloned (${gaps.length})`,
+            type: "default",
+            onClick: (id: string) => {
+                const gapList = gaps
+                    .map((g) => `\u2022 ${g.title}\n  ${g.detail}\n  Fix: ${g.howToFix}`)
+                    .join("\n\n");
+                closePill(id);
+                notify("Not Transferred", gapList, "info", 15000);
             },
         });
     }

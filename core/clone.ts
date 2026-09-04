@@ -24,6 +24,7 @@ import { CloneOptions } from "../types";
 import { Guild } from "@vencord/discord-types";
 import { sleep } from "../utils/helpers";
 import { CloneContext } from "./types";
+import { collectCloneGaps } from "./cloneGaps";
 
 const AuthStore = findByPropsLazy("getToken");
 
@@ -364,7 +365,29 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         completeMainProgress(pillId, `${sourceGuild.name} cloned successfully!`, true);
 
-        showCloneSummary(state.cloneStats, state.failedItems);
+        try {
+            const targetGuild = GuildStore.getGuild(newGuildId);
+            const gaps = collectCloneGaps({
+                source: fullGuildData,
+                targetTier: (targetGuild as any)?.premiumTier || 0,
+                sourceTier: fullGuildData?.premium_tier || 0,
+                options: {
+                    cloneChannels: options.cloneChannels,
+                    cloneRoles: options.cloneRoles,
+                    cloneOnboarding: options.cloneOnboarding,
+                    cloneStickers: options.cloneStickers,
+                    cloneSoundboard: options.cloneSoundboard,
+                },
+                stats: {
+                    stickersCloned,
+                    soundboardCloned,
+                    onboardingCloned,
+                },
+            });
+            showCloneSummary(state.cloneStats, state.failedItems, gaps);
+        } catch {
+            showCloneSummary(state.cloneStats, state.failedItems);
+        }
     } catch (e: any) {
         if (e?.message === "Cancelled") {
             if (state.mainProgressNotificationId) {
