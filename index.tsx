@@ -11,9 +11,10 @@ import { PLUGIN_VERSION, UPDATE_CHECK_ENABLED, UPDATE_CHECK_URL } from "./consta
 import { settings } from "./settings";
 import { showUpdateModal, navigateToUpdatesChannel } from "./components/UpdateModal";
 import { CloneModal } from "./components/CloneModal";
-import { cloneServer } from "./core/clone";
+import { cloneServer, resumeClone } from "./core/clone";
+import { loadCheckpoint, clearCheckpoint } from "./core/checkpoints";
 import { state } from "./store";
-import { cleanupContainer } from "./utils/notifications";
+import { cleanupContainer, notify } from "./utils/notifications";
 import { compareVersions } from "./utils/helpers";
 import { registerDevTools, unregisterDevTools } from "./devTools";
 
@@ -76,6 +77,34 @@ async function checkForUpdates(): Promise<void> {
     }
 }
 
+async function checkForUnfinishedClone(): Promise<void> {
+    try {
+        const checkpoint = await loadCheckpoint();
+        if (!checkpoint) return;
+        const done = Object.values(checkpoint.progress).reduce((a, b) => a + b, 0);
+        notify(
+            "Unfinished Clone Found",
+            `${checkpoint.sourceGuildName}: ${done} items already cloned. Resume or discard.`,
+            "info",
+            15000,
+            [
+                {
+                    label: "Resume",
+                    type: "default",
+                    onClick: () => resumeClone(checkpoint.runId).catch(() => {}),
+                },
+                {
+                    label: "Discard",
+                    type: "danger",
+                    onClick: () => clearCheckpoint().catch(() => {}),
+                },
+            ]
+        );
+    } catch (e) {
+        console.warn("[Clonecord] Checkpoint check failed:", e);
+    }
+}
+
 const guildContextMenuPatch: NavContextMenuPatchCallback = (
     children: any[],
     props: { guild?: Guild }
@@ -118,6 +147,7 @@ export default definePlugin({
         state.settings = settings;
         setTimeout(() => checkForUpdates(), 5000);
         setTimeout(() => navigateToUpdatesChannel().catch(() => {}), 3000);
+        setTimeout(() => checkForUnfinishedClone(), 8000);
         registerDevTools();
     },
 

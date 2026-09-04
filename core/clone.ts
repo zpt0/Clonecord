@@ -25,6 +25,13 @@ import { Guild } from "@vencord/discord-types";
 import { sleep } from "../utils/helpers";
 import { CloneContext } from "./types";
 import { collectCloneGaps } from "./cloneGaps";
+import {
+    newRunId,
+    saveCheckpoint,
+    clearCheckpoint,
+    emptyProgress,
+    CloneCheckpoint,
+} from "./checkpoints";
 
 const AuthStore = findByPropsLazy("getToken");
 
@@ -52,6 +59,50 @@ import { cloneChannels } from "./cloneChannels";
 import { cloneSettings } from "./cloneSettings";
 import { cloneOnboarding } from "./cloneOnboarding";
 import { cloneStickers, cloneSoundboard } from "./cloneAssets";
+import { loadCheckpoint } from "./checkpoints";
+
+export async function resumeClone(checkpointRunId?: string): Promise<boolean> {
+    const checkpoint = await loadCheckpoint();
+    if (!checkpoint) {
+        notify("Nothing to Resume", "No unfinished clone found.", "info");
+        return false;
+    }
+    if (checkpointRunId && checkpoint.runId !== checkpointRunId) return false;
+
+    const guild = GuildStore.getGuild(checkpoint.sourceGuildId);
+    if (!guild) {
+        notify("Source Missing", "The source server is no longer available.", "error");
+        return false;
+    }
+    const target = GuildStore.getGuild(checkpoint.targetGuildId);
+    if (!target) {
+        notify(
+            "Target Missing",
+            "The target server from the checkpoint no longer exists. Starting fresh is safer.",
+            "error"
+        );
+        return false;
+    }
+
+    pendingResumeMaps = {
+        roleIdMap: { ...checkpoint.roleIdMap },
+        channelIdMap: { ...checkpoint.channelIdMap },
+        emojiIdMap: { ...checkpoint.emojiIdMap },
+    };
+
+    await cloneServer(guild as Guild, {
+        ...(checkpoint.options as unknown as CloneOptions),
+        targetGuildId: checkpoint.targetGuildId,
+        resumeMode: true,
+    });
+    return true;
+}
+
+let pendingResumeMaps: {
+    roleIdMap: Record<string, string>;
+    channelIdMap: Record<string, string>;
+    emojiIdMap: Record<string, string>;
+} | null = null;
 
 export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
     if (state.isCloning) {
@@ -62,6 +113,9 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
     state.isCloning = true;
     state.abortController = new AbortController();
     state.emojiIdMap = {};
+    if (pendingResumeMaps) {
+        state.emojiIdMap = { ...pendingResumeMaps.emojiIdMap };
+    }
     state.cloneErrors = [];
     state.failedItems = [];
     state.cloneStats = null;
@@ -72,6 +126,18 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
     const taskQueue = new TaskQueue(5);
     state.taskQueue = taskQueue;
+
+    const runId = newRunId(sourceGuild.id);
+    const checkpointBase = {
+        runId,
+        sourceGuildId: sourceGuild.id,
+        sourceGuildName: sourceGuild.name,
+        targetGuildId: "",
+        options: { ...options },
+        completed: false,
+        updatedAt: Date.now(),
+    };
+    const progress = emptyProgress();
 
     try {
         const guild = GuildStore.getGuild(sourceGuild.id);
@@ -252,8 +318,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             fullGuildData,
             newGuildId,
             options,
-            roleIdMap: {},
-            channelIdMap: {},
+            roleIdMap: pendingResumeMaps ? { ...pendingResumeMaps.roleIdMap } : {},
+            channelIdMap: pendingResumeMaps ? { ...pendingResumeMaps.channelIdMap } : {},
             taskQueue,
             estimateChannels,
             estimateRoles,
@@ -269,12 +335,27 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             soundboardProgressEnd,
         };
 
+        const snapshot = async () => {
+            const checkpoint: CloneCheckpoint = {
+                ...checkpointBase,
+                targetGuildId: newGuildId,
+                roleIdMap: { ...ctx.roleIdMap },
+                channelIdMap: { ...ctx.channelIdMap },
+                emojiIdMap: { ...state.emojiIdMap },
+                progress: { ...progress },
+                updatedAt: Date.now(),
+            };
+            await saveCheckpoint(checkpoint);
+        };
+
         throwIfCancelled();
 
         let emojisCloned = 0;
         if (options.cloneChannels || options.cloneRoles || options.cloneOnboarding) {
             const emojiResult = await extractAndCloneEmojis(ctx);
             emojisCloned = emojiResult.emojisCloned;
+            progress.emojisCloned = emojisCloned;
+            await snapshot();
         }
 
         throwIfCancelled();
@@ -283,6 +364,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         if (options.cloneStickers) {
             updateWithTime("Cloning stickers...", stickersProgressStart);
             stickersCloned = await cloneStickers(ctx);
+            progress.stickersCloned = stickersCloned;
+            await snapshot();
         }
 
         throwIfCancelled();
@@ -291,6 +374,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         if (options.cloneSoundboard) {
             updateWithTime("Cloning soundboard...", soundboardProgressStart);
             soundboardCloned = await cloneSoundboard(ctx);
+            progress.soundboardCloned = soundboardCloned;
+            await snapshot();
         }
 
         throwIfCancelled();
@@ -300,6 +385,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             updateWithTime("Cloning roles...", rolesProgressStart);
             const rolesResult = await cloneRoles(ctx);
             rolesCloned = rolesResult.rolesCloned;
+            progress.rolesCloned = rolesCloned;
+            await snapshot();
         }
 
         throwIfCancelled();
@@ -310,6 +397,9 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             const channelsResult = await cloneChannels(ctx);
             channelsCloned = channelsResult.channelsCloned;
             categoriesCloned = channelsResult.categoriesCloned;
+            progress.channelsCloned = channelsCloned;
+            progress.categoriesCloned = categoriesCloned;
+            await snapshot();
         }
 
         throwIfCancelled();
@@ -388,12 +478,14 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         } catch {
             showCloneSummary(state.cloneStats, state.failedItems);
         }
+
+        await clearCheckpoint();
     } catch (e: any) {
         if (e?.message === "Cancelled") {
             if (state.mainProgressNotificationId) {
                 completeMainProgress(
                     state.mainProgressNotificationId,
-                    "Clone Cancelled",
+                    "Clone Cancelled — resume from the Clonecord menu",
                     false,
                     "Cancelled"
                 );
@@ -418,6 +510,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             showCloneSummary(state.cloneStats, state.failedItems);
         }
     } finally {
+        pendingResumeMaps = null;
         state.isCloning = false;
         state.abortController = null;
         state.mainProgressNotificationId = null;
