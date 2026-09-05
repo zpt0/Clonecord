@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.0]
+
+- Retry system: after a clone, retry only the items that failed or were skipped, using real API calls — no double-cloning of what already worked
+- Adaptive concurrency: the clone task queue scales up after successful batches and backs off on rate limits for more reliable clones on big servers
+- Hardened checkpoints: completed clones are no longer rediscovered as "unfinished", and stale checkpoints are ignored, so the resume prompt only appears when there is genuinely work left
+- Summary only reports real gaps: stickers, sounds, and onboarding now show a gap only when the source actually had them and the target didn't get them
+- Resume mode restores from saved ID maps only, so resuming no longer guesses names and creates duplicates
+- Dropped onboarding options (ones whose roles/channels had no mapped target) are surfaced to the retry list instead of silently vanishing
+- "Clone complete" pill auto-dismisses after a few seconds
+
 ## [1.1.2]
 
 - Dev dependency updates: eslint 10.9.1, typescript-eslint 8.68.0, @types/node 26.4.0, vitest 4.1.11, @vitest/coverage-v8 4.1.11
