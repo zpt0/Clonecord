@@ -4,13 +4,10 @@ import { arrayBufferToBase64 } from "./helpers";
 export async function fetchGuildRoles(guildId: string): Promise<any[]> {
     try {
         const rolesFromStore = GuildRoleStore.getSortedRoles(guildId);
-        if (rolesFromStore && rolesFromStore.length > 0) {
-            return rolesFromStore;
-        }
+        if (rolesFromStore && rolesFromStore.length > 0) return rolesFromStore;
         const response = await RestAPI.get({ url: `/guilds/${guildId}/roles` });
         return response.body || [];
-    } catch (e) {
-        console.warn("[Clonecord] Failed to fetch guild roles:", e);
+    } catch {
         return [];
     }
 }
@@ -19,8 +16,7 @@ export async function fetchGuildData(guildId: string): Promise<any> {
     try {
         const response = await RestAPI.get({ url: `/guilds/${guildId}` });
         return response.body || null;
-    } catch (e) {
-        console.warn("[Clonecord] Failed to fetch guild data:", e);
+    } catch {
         return null;
     }
 }
@@ -57,8 +53,7 @@ export function extractChannels(guildId: string, includeHidden = false): any[] {
         }
 
         return channels;
-    } catch (e) {
-        console.warn("[Clonecord] Failed to extract channels:", e);
+    } catch {
         return [];
     }
 }
@@ -78,9 +73,7 @@ export async function fetchAssetBase64(
             const data = await response.arrayBuffer();
             return `data:image/png;base64,${arrayBufferToBase64(data)}`;
         }
-    } catch (e) {
-        console.warn(`[Clonecord] Failed to fetch asset from ${url}:`, e);
-    }
+    } catch {}
     return fallback;
 }
 
