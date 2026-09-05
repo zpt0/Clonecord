@@ -18,20 +18,19 @@ export class TaskQueue {
     private activeWorkers = 0;
     private pausedUntil = 0;
     private consecutive429 = 0;
-    private successCount = 0;
+    private successSinceScale = 0;
     private completedRequests = 0;
     private totalRequestMs = 0;
 
     private requestTimestamps: number[] = [];
     private static readonly WINDOW_MS = 5000;
     private static readonly MAX_REQUESTS_PER_WINDOW = 5;
-
     private static readonly MAX_CONSECUTIVE_429 = 15;
-    private static readonly SUCCESSES_TO_UPSCALE = 2;
+    private static readonly SUCCESSES_TO_UPSCALE = 3;
 
     constructor(concurrency = 5) {
         this.maxConcurrency = concurrency;
-        this.currentConcurrency = concurrency;
+        this.currentConcurrency = Math.max(1, Math.floor(concurrency / 2));
     }
 
     getStatus(): RateLimitStatus {
@@ -58,7 +57,6 @@ export class TaskQueue {
             if (exitCondition && exitCondition()) throw new Error("Skipped");
 
             const now = Date.now();
-
             this.requestTimestamps = this.requestTimestamps.filter(
                 (t) => now - t < TaskQueue.WINDOW_MS
             );
@@ -84,8 +82,7 @@ export class TaskQueue {
             if (exitCondition && exitCondition()) throw new Error("Skipped");
 
             if (Date.now() < this.pausedUntil) {
-                const sleepMs = Math.max(100, this.pausedUntil - Date.now());
-                await sleep(Math.min(sleepMs, 500));
+                await sleep(Math.min(Math.max(100, this.pausedUntil - Date.now()), 500));
             } else {
                 await sleep(50);
             }
@@ -100,8 +97,7 @@ export class TaskQueue {
                     if (exitCondition && exitCondition()) throw new Error("Skipped");
 
                     if (Date.now() < this.pausedUntil) {
-                        const sleepMs = Math.max(100, this.pausedUntil - Date.now());
-                        await sleep(sleepMs);
+                        await sleep(Math.max(100, this.pausedUntil - Date.now()));
                         if (!state.isCloning) throw new Error("Cancelled");
                     }
 
@@ -112,13 +108,14 @@ export class TaskQueue {
                     this.totalRequestMs += Date.now() - startedAt;
                     this.completedRequests++;
                     this.consecutive429 = 0;
+                    this.successSinceScale++;
 
-                    this.successCount++;
-                    if (this.successCount >= TaskQueue.SUCCESSES_TO_UPSCALE) {
-                        if (this.currentConcurrency < this.maxConcurrency) {
-                            this.currentConcurrency++;
-                            this.successCount = 0;
-                        }
+                    if (
+                        this.successSinceScale >= TaskQueue.SUCCESSES_TO_UPSCALE &&
+                        this.currentConcurrency < this.maxConcurrency
+                    ) {
+                        this.currentConcurrency++;
+                        this.successSinceScale = 0;
                     }
 
                     return result;
@@ -129,17 +126,12 @@ export class TaskQueue {
 
                     if (e?.status === 429) {
                         this.consecutive429++;
-                        this.successCount = 0;
+                        this.successSinceScale = 0;
 
                         const oldConcurrency = this.currentConcurrency;
-                        this.currentConcurrency = Math.max(
-                            1,
-                            Math.floor(this.currentConcurrency / 2)
-                        );
+                        this.currentConcurrency = Math.max(1, Math.floor(this.currentConcurrency / 2));
                         if (oldConcurrency !== this.currentConcurrency) {
-                            console.warn(
-                                `[Clonecord] 429 — downscaling concurrency ${oldConcurrency} → ${this.currentConcurrency}`
-                            );
+                            console.warn(`[Clonecord] 429 — downscaling concurrency ${oldConcurrency} → ${this.currentConcurrency}`);
                         }
 
                         if (this.consecutive429 >= TaskQueue.MAX_CONSECUTIVE_429) {
@@ -155,28 +147,22 @@ export class TaskQueue {
 
                         if (newPauseUntil > this.pausedUntil) {
                             this.pausedUntil = newPauseUntil;
-                            const msg = `Rate limited — waiting ${Math.ceil(retryAfter / 1000)}s`;
-                            if (statusUpdateCb) statusUpdateCb(msg);
-                            console.warn(`[Clonecord] Global pause for ${retryAfter}ms`);
+                            if (statusUpdateCb)
+                                statusUpdateCb(`Rate limited — waiting ${Math.ceil(retryAfter / 1000)}s`);
                         }
 
                         await sleep(retryAfter);
-
                         if (i < retries - 1) continue;
                     }
 
                     if (e?.status === 403) {
                         let errorCode = e?.body?.code || 0;
                         if (!errorCode && e?.text) {
-                            try {
-                                errorCode = JSON.parse(e.text)?.code || 0;
-                            } catch {}
+                            try { errorCode = JSON.parse(e.text)?.code || 0; } catch {}
                         }
                         if (errorCode === 50101) throw e;
-
                         if (i < retries - 1) {
-                            const backoff = Math.min(2000 + i * 2000, 10000);
-                            await sleep(backoff);
+                            await sleep(Math.min(2000 + i * 2000, 10000));
                             continue;
                         }
                         throw e;
