@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.1]
+
+- Update modal now renders release notes as Discord markdown: bold, code, and `[text](url)` links display properly instead of showing the literal markdown syntax
+- Release notes on the 1.2.0 tag now use absolute GitHub URLs so those code links render and open correctly
+
 ## [1.2.0]
 
 - Retry system: after a clone, retry only the items that failed or were skipped, using real API calls — no double-cloning of what already worked
