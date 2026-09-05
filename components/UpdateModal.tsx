@@ -7,7 +7,7 @@ import {
     ModalContent,
     ModalFooter,
 } from "@utils/modal";
-import { Button, ChannelStore, NavigationRouter, InviteActions } from "@webpack/common";
+import { Button, ChannelStore, NavigationRouter, InviteActions, Parser } from "@webpack/common";
 import { openInviteModal } from "@utils/discord";
 import {
     GITHUB_RELEASE_URL,
@@ -177,13 +177,12 @@ function UpdateModalInner({
                         </div>
                         <div
                             style={{
-                                whiteSpace: "pre-wrap",
                                 color: "#FFFFFF",
                                 lineHeight: "1.5",
                                 fontSize: "14px",
                             }}
                         >
-                            {releaseNotes}
+                            {Parser.parse(releaseNotes, true)}
                         </div>
                     </div>
                 </div>

@@ -122,6 +122,10 @@ declare module "@webpack/common" {
         ): Promise<{ invite: { guild: { id: string }; channel: { id: string } } | null }>;
     };
 
+    const Parser: {
+        parse(input: string, allowLinks?: boolean): React.ReactNode;
+    };
+
     export {
         React,
         Menu,
@@ -136,5 +140,6 @@ declare module "@webpack/common" {
         NavigationRouter,
         ChannelStore,
         InviteActions,
+        Parser,
     };
 }
