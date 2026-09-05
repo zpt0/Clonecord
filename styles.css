@@ -474,6 +474,113 @@
     word-break: break-word;
 }
 
+/* ─── Summary Pill ────────────────────────────────────────── */
+.cloner-summary {
+    align-items: flex-start;
+    max-width: 420px;
+    flex-direction: row;
+}
+
+.cloner-summary-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+}
+
+.cloner-summary-stat {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+}
+
+.cloner-summary-stat-num {
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.cloner-summary-stat-tag {
+    background: rgba(67, 181, 129, 0.15);
+    color: #43b581;
+}
+
+.cloner-summary-empty {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    margin-top: 4px;
+}
+
+.cloner-summary-failures {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.cloner-summary-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #ed4245;
+    margin-bottom: 2px;
+}
+
+.cloner-summary-failure-row {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.cloner-summary-failure-ctx {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(237, 66, 69, 0.2);
+    color: #ed4245;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.cloner-summary-failure-name {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    flex-shrink: 0;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cloner-summary-failure-err {
+    color: rgba(255, 255, 255, 0.45);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cloner-summary-failure-more {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 1px;
+    padding-left: 2px;
+}
+
+.cloner-summary-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
 /* ─── Scrollbar ───────────────────────────────────────────── */
 .vc-pill-container::-webkit-scrollbar {
     display: none;

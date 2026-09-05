@@ -20,6 +20,11 @@ export const state = {
     isExistingServer: false as boolean,
     optionsUsed: null as CloneOptions | null,
     settings: null as any,
+    lastCloneTargetGuildId: null as string | null,
+    lastCloneRoleIdMap: {} as Record<string, string>,
+    lastCloneChannelIdMap: {} as Record<string, string>,
+    lastCloneEmojiIdMap: {} as Record<string, string>,
+    lastCloneSourceGuildId: null as string | null,
 };
 
 export function throwIfCancelled() {

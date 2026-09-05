@@ -1,7 +1,11 @@
 import { state } from "../store";
-import { escapeHtml } from "./helpers";
+import { escapeHtml, replaceEmojis, arrayBufferToBase64 } from "./helpers";
 import { NotificationAction, CloneStats, CloneFailure } from "../types";
-import { RestAPI } from "@webpack/common";
+import { RestAPI, GuildStore } from "@webpack/common";
+import { findByPropsLazy } from "@webpack";
+import { TaskQueue } from "./TaskQueue";
+import { cloneOnboarding } from "../core/cloneOnboarding";
+import { CloneContext } from "../core/types";
 import type { RateLimitStatus } from "./TaskQueue";
 
 export function formatElapsed(ms: number): string {
@@ -356,103 +360,434 @@ export function showCloneSummary(
     gaps: { title: string; detail: string; howToFix: string }[] = []
 ): void {
     const hasFailures = failures.length > 0;
+    const container = getPillContainer();
 
-    const summaryParts: string[] = [];
-    if (stats.channelsCloned > 0) summaryParts.push(`${stats.channelsCloned} channels`);
-    if (stats.categoriesCloned > 0) summaryParts.push(`${stats.categoriesCloned} categories`);
-    if (stats.rolesCloned > 0) summaryParts.push(`${stats.rolesCloned} roles`);
-    if (stats.emojisCloned > 0) summaryParts.push(`${stats.emojisCloned} emojis`);
-    if (stats.stickersCloned > 0) summaryParts.push(`${stats.stickersCloned} stickers`);
-    if (stats.soundboardCloned > 0) summaryParts.push(`${stats.soundboardCloned} sounds`);
-    if (stats.onboardingCloned) summaryParts.push("onboarding");
+    const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const pill = document.createElement("div");
+    pill.className = `cloner-sub-pill cloner-summary ${hasFailures ? "error" : "success"}`;
+    pill.id = notificationId;
 
-    const summaryText = summaryParts.length > 0 ? summaryParts.join(", ") : "No items were cloned";
+    // stat rows \u2014 only show what was actually cloned
+    const statRows: { label: string; value: number | boolean }[] = [
+        { label: "Channels", value: stats.channelsCloned },
+        { label: "Categories", value: stats.categoriesCloned },
+        { label: "Roles", value: stats.rolesCloned },
+        { label: "Emojis", value: stats.emojisCloned },
+        { label: "Stickers", value: stats.stickersCloned },
+        { label: "Sounds", value: stats.soundboardCloned },
+    ].filter((r) => typeof r.value === "number" && r.value > 0);
 
-    const failureText = hasFailures
-        ? `${failures.length} item${failures.length > 1 ? "s" : ""} failed`
+    const statsHtml =
+        statRows.length > 0
+            ? `<div class="cloner-summary-stats">` +
+              statRows
+                  .map(
+                      (r) =>
+                          `<span class="cloner-summary-stat"><span class="cloner-summary-stat-num">${r.value}</span> ${escapeHtml(r.label)}</span>`
+                  )
+                  .join("") +
+              (stats.onboardingCloned
+                  ? `<span class="cloner-summary-stat cloner-summary-stat-tag">Onboarding \u2713</span>`
+                  : "") +
+              `</div>`
+            : `<div class="cloner-summary-empty">Nothing was cloned</div>`;
+
+    const failuresHtml = hasFailures
+        ? `<div class="cloner-summary-failures">` +
+          `<div class="cloner-summary-section-label">Failed (${failures.length})</div>` +
+          failures
+              .slice(0, 5)
+              .map(
+                  (f) =>
+                      `<div class="cloner-summary-failure-row"><span class="cloner-summary-failure-ctx">${escapeHtml(f.context)}</span><span class="cloner-summary-failure-name">${escapeHtml(f.name)}</span><span class="cloner-summary-failure-err">${escapeHtml(f.error)}</span></div>`
+              )
+              .join("") +
+          (failures.length > 5
+              ? `<div class="cloner-summary-failure-more">+${failures.length - 5} more</div>`
+              : "") +
+          `</div>`
         : "";
 
-    const title = hasFailures ? "Clone Completed with Errors" : "Clone Summary";
-    const body = hasFailures ? `${summaryText}\n${failureText}` : summaryText;
-    const type = hasFailures ? "error" : "success";
+    const titleText = hasFailures ? "Cloned with errors" : "Clone complete";
+    const iconHtml = `<div class="cloner-sub-pill-icon ${hasFailures ? "error" : "success"}">${hasFailures ? "\u2715" : "\u2713"}</div>`;
 
-    const actions: NotificationAction[] = [];
+    // action buttons
+    const btnIds = {
+        retry: `btn-retry-${notificationId}`,
+        gaps: `btn-gaps-${notificationId}`,
+        close: `btn-close-${notificationId}`,
+    };
+
+    const actionsHtml =
+        `<div class="cloner-summary-actions">` +
+        (hasFailures
+            ? `<button id="${btnIds.retry}" class="cloner-btn">Retry failed</button>`
+            : "") +
+        (gaps.length > 0
+            ? `<button id="${btnIds.gaps}" class="cloner-btn">Not cloned (${gaps.length})</button>`
+            : "") +
+        `<button id="${btnIds.close}" class="cloner-btn">Dismiss</button>` +
+        `</div>`;
+
+    pill.innerHTML =
+        iconHtml +
+        `<div class="cloner-sub-pill-content">` +
+        `<div class="cloner-sub-pill-title">${escapeHtml(titleText)}</div>` +
+        statsHtml +
+        failuresHtml +
+        actionsHtml +
+        `</div>`;
+
+    container.appendChild(pill);
+
+    document.getElementById(btnIds.close)?.addEventListener("click", () => closePill(notificationId));
 
     if (hasFailures) {
-        actions.push({
-            label: "View Errors",
-            type: "default",
-            onClick: (id: string) => {
-                const errorList = failures
-                    .map((f) => `\u2022 [${f.context}] ${f.name}: ${f.error}`)
-                    .join("\n");
-                closePill(id);
-                notify("Failed Items", errorList, "error", 12000);
-            },
-        });
-        actions.push({
-            label: "Retry Failed",
-            type: "default",
-            onClick: async (id: string) => {
-                closePill(id);
-                notify("Retrying", "Re-attempting failed items...", "info", 5000);
-                await retryFailedItems(failures);
-            },
+        document.getElementById(btnIds.retry)?.addEventListener("click", async () => {
+            closePill(notificationId);
+            notify("Retrying", "Re-attempting failed items...", "info", 5000);
+            await retryFailedItems(failures);
         });
     }
 
     if (gaps.length > 0) {
-        actions.push({
-            label: `Not Cloned (${gaps.length})`,
-            type: "default",
-            onClick: (id: string) => {
-                const gapList = gaps
-                    .map((g) => `\u2022 ${g.title}\n  ${g.detail}\n  Fix: ${g.howToFix}`)
-                    .join("\n\n");
-                closePill(id);
-                notify("Not Transferred", gapList, "info", 15000);
-            },
+        document.getElementById(btnIds.gaps)?.addEventListener("click", () => {
+            closePill(notificationId);
+            const gapPillId = notify("Not transferred", "", "info", 0);
+            const gapPill = document.getElementById(gapPillId);
+            if (gapPill) {
+                const content = gapPill.querySelector(".cloner-sub-pill-content");
+                if (content) {
+                    const listHtml =
+                        `<div class="cloner-summary-failures">` +
+                        gaps
+                            .map(
+                                (g) =>
+                                    `<div class="cloner-summary-failure-row"><span class="cloner-summary-failure-name">${escapeHtml(g.title)}</span><span class="cloner-summary-failure-err">${escapeHtml(g.detail)}</span></div>`
+                            )
+                            .join("") +
+                        `</div>` +
+                        `<div class="cloner-summary-actions"><button class="cloner-btn cloner-gap-dismiss">Dismiss</button></div>`;
+                    content.insertAdjacentHTML("beforeend", listHtml);
+                    gapPill
+                        .querySelector(".cloner-gap-dismiss")
+                        ?.addEventListener("click", () => closePill(gapPillId));
+                }
+            }
         });
     }
 
-    const notificationId = notify(title, body, type, 10000, actions);
+    // auto-dismiss so the summary is temporary; failures stay a bit longer so the user can retry
+    setTimeout(() => closePill(notificationId), hasFailures ? 25000 : 8000);
+}
 
-    const pill = document.getElementById(notificationId);
-    if (pill) {
-        pill.classList.add("always-expanded");
+const AuthStore = findByPropsLazy("getToken");
+
+const retryHelpers = {
+    async fetchBase64(url: string): Promise<string> {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`CDN returned ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        return arrayBufferToBase64(buffer);
+    },
+};
+
+async function retryRole(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
+    const role = failure.sourceData;
+    const rolePayload: any = {
+        name: replaceEmojis(role?.name) || failure.name,
+        permissions: role?.permissions?.toString() ?? "0",
+        color: role?.color ?? 0,
+        hoist: role?.hoist ?? false,
+        mentionable: role?.mentionable ?? false,
+    };
+
+    const targetGuild = GuildStore.getGuild(targetGuildId);
+    const targetTier = (targetGuild as any)?.premiumTier || 0;
+    if (targetTier >= 2) {
+        rolePayload.unicode_emoji = role?.unicodeEmoji || role?.unicode_emoji || null;
+        const roleIcon = role?.icon;
+        if (roleIcon) {
+            try {
+                rolePayload.icon = `data:image/png;base64,${await retryHelpers.fetchBase64(
+                    `https://cdn.discordapp.com/role-icons/${role.id}/${roleIcon}.png?size=128`
+                )}`;
+            } catch {
+                // icon fetch failed — proceed without it
+            }
+        }
     }
+
+    const resp = await RestAPI.post({
+        url: `/guilds/${targetGuildId}/roles`,
+        body: rolePayload,
+    });
+    if (resp?.body?.id && role?.id) state.lastCloneRoleIdMap[role.id] = resp.body.id;
+    return true;
+}
+
+function mapOverwrites(overwrites: any[], targetGuildId: string): any[] {
+    return (overwrites || [])
+        .filter(
+            (ow: any) =>
+                ow.type === 0 &&
+                (state.lastCloneRoleIdMap[ow.id] || ow.id === state.lastCloneSourceGuildId)
+        )
+        .map((ow: any) => ({
+            id:
+                ow.id === state.lastCloneSourceGuildId
+                    ? targetGuildId
+                    : state.lastCloneRoleIdMap[ow.id],
+            type: 0,
+            allow: ow.allow,
+            deny: ow.deny,
+        }));
+}
+
+async function retryCategory(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
+    const cat = failure.sourceData;
+    const catPayload: any = {
+        name: cat?.name || failure.name,
+        type: 4,
+        position: cat?.position ?? 0,
+        permission_overwrites: [],
+    };
+    const mappedOverwrites = mapOverwrites(cat?.permission_overwrites, targetGuildId);
+    if (mappedOverwrites.length > 0) catPayload.permission_overwrites = mappedOverwrites;
+
+    const resp = await RestAPI.post({ url: `/guilds/${targetGuildId}/channels`, body: catPayload });
+    if (resp?.body?.id && cat?.id) state.lastCloneChannelIdMap[cat.id] = resp.body.id;
+    return true;
+}
+
+async function retryChannel(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
+    const ch = failure.sourceData;
+    const chPayload: any = {
+        name: replaceEmojis(ch?.name) || failure.name,
+        type: ch?.type ?? 0,
+        position: ch?.position ?? 0,
+        topic: replaceEmojis(ch?.topic) ?? undefined,
+        nsfw: ch?.nsfw ?? false,
+        rate_limit_per_user: ch?.rate_limit_per_user ?? 0,
+        permission_overwrites: [],
+    };
+
+    if (ch?.parent_id && state.lastCloneChannelIdMap[ch.parent_id]) {
+        chPayload.parent_id = state.lastCloneChannelIdMap[ch.parent_id];
+    }
+
+    if (ch?.type === 2 || ch?.type === 13) {
+        const targetGuild = GuildStore.getGuild(targetGuildId);
+        const targetTier = (targetGuild as any)?.premiumTier || 0;
+        const maxBitrate =
+            targetTier >= 3 ? 384000 : targetTier >= 2 ? 256000 : targetTier >= 1 ? 128000 : 96000;
+        chPayload.bitrate = Math.min(ch?.bitrate || 64000, maxBitrate);
+        chPayload.user_limit = ch?.user_limit || 0;
+    }
+
+    if (ch?.type === 15 || ch?.type === 16) {
+        if (ch?.available_tags && Array.isArray(ch.available_tags)) {
+            chPayload.available_tags = ch.available_tags.map((tag: any) => ({
+                name: replaceEmojis(tag.name),
+                emoji_id:
+                    tag.emoji_id && state.lastCloneEmojiIdMap[tag.emoji_id]
+                        ? state.lastCloneEmojiIdMap[tag.emoji_id]
+                        : null,
+                emoji_name: tag.emoji_name || null,
+                moderated: tag.moderated || false,
+            }));
+        }
+        if (ch?.default_reaction_emoji) {
+            if (
+                ch.default_reaction_emoji.emoji_id &&
+                state.lastCloneEmojiIdMap[ch.default_reaction_emoji.emoji_id]
+            ) {
+                chPayload.default_reaction_emoji = {
+                    emoji_id: state.lastCloneEmojiIdMap[ch.default_reaction_emoji.emoji_id],
+                    emoji_name: ch.default_reaction_emoji.emoji_name || null,
+                };
+            } else if (
+                ch.default_reaction_emoji.emoji_name &&
+                !ch.default_reaction_emoji.emoji_id
+            ) {
+                chPayload.default_reaction_emoji = {
+                    emoji_id: null,
+                    emoji_name: ch.default_reaction_emoji.emoji_name,
+                };
+            }
+        }
+        if (ch?.default_sort_order !== undefined) chPayload.default_sort_order = ch.default_sort_order;
+        if (ch?.default_forum_layout !== undefined)
+            chPayload.default_forum_layout = ch.default_forum_layout;
+    }
+
+    const mappedOverwrites = mapOverwrites(ch?.permission_overwrites, targetGuildId);
+    if (mappedOverwrites.length > 0) chPayload.permission_overwrites = mappedOverwrites;
+
+    const resp = await RestAPI.post({ url: `/guilds/${targetGuildId}/channels`, body: chPayload });
+    if (resp?.body?.id && ch?.id) state.lastCloneChannelIdMap[ch.id] = resp.body.id;
+    return true;
+}
+
+async function retryEmoji(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
+    const emoji = failure.sourceData;
+    const ext = emoji?.animated ? "gif" : "png";
+    const imageStr = `data:image/${ext};base64,${await retryHelpers.fetchBase64(
+        `https://cdn.discordapp.com/emojis/${emoji?.id}.${ext}?size=256`
+    )}`;
+
+    const createResp = await RestAPI.post({
+        url: `/guilds/${targetGuildId}/emojis`,
+        body: { name: emoji?.name || failure.name, image: imageStr, roles: [] },
+    });
+    if (createResp?.body?.id && emoji?.id) state.lastCloneEmojiIdMap[emoji.id] = createResp.body.id;
+    return true;
+}
+
+async function retrySticker(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
+    const sticker = failure.sourceData;
+    const formatExt: Record<number, string> = { 1: "png", 2: "png", 3: "json", 4: "gif" };
+    const ext = formatExt[sticker?.format_type] || "png";
+    const stickerUrl = `https://media.discordapp.net/stickers/${sticker?.id}.${ext}`;
+
+    const response = await fetch(stickerUrl);
+    if (!response.ok) throw new Error(`CDN returned ${response.status}`);
+    const blob = await response.blob();
+
+    const mimeTypes: Record<number, string> = {
+        1: "image/png",
+        2: "image/apng",
+        3: "application/json",
+        4: "image/gif",
+    };
+    const mime = mimeTypes[sticker?.format_type] || "image/png";
+    const file = new File([blob], `${sticker?.name || failure.name}.${ext}`, { type: mime });
+
+    const formData = new FormData();
+    formData.append("name", sticker?.name || failure.name);
+    formData.append("description", sticker?.description || "");
+    formData.append("tags", sticker?.tags || "");
+    formData.append("file", file);
+
+    const authToken = AuthStore?.getToken?.();
+    if (!authToken) throw new Error("Could not get auth token");
+
+    const resp = await fetch(`/api/v9/guilds/${targetGuildId}/stickers`, {
+        method: "POST",
+        headers: { Authorization: authToken },
+        body: formData,
+    });
+    if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.message || `Sticker upload failed: ${resp.status}`);
+    }
+    return true;
+}
+
+async function retrySoundboard(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
+    const sound = failure.sourceData;
+    const dataUri = `data:audio/ogg;base64,${await retryHelpers.fetchBase64(
+        `https://cdn.discordapp.com/soundboard-sounds/${sound?.sound_id}`
+    )}`;
+
+    const body: any = {
+        name: sound?.name || failure.name,
+        sound: dataUri,
+        volume: sound?.volume ?? 1,
+    };
+    if (sound?.emoji_name && !sound?.emoji_id) body.emoji_name = sound.emoji_name;
+
+    await RestAPI.post({ url: `/guilds/${targetGuildId}/soundboard-sounds`, body });
+    return true;
+}
+
+async function retryOnboarding(): Promise<void> {
+    const sourceGuildId = state.lastCloneSourceGuildId;
+    const targetGuildId = state.lastCloneTargetGuildId;
+    if (!sourceGuildId || !targetGuildId) throw new Error("Missing source or target server");
+    const sourceGuild = GuildStore.getGuild(sourceGuildId);
+    if (!sourceGuild) throw new Error("Source server no longer available");
+
+    const taskQueue = new TaskQueue(3);
+    await cloneOnboarding({
+        sourceGuild,
+        newGuildId: targetGuildId,
+        channelIdMap: state.lastCloneChannelIdMap,
+        roleIdMap: state.lastCloneRoleIdMap,
+        taskQueue,
+        onboardingProgressStart: 85,
+    } as unknown as CloneContext);
 }
 
 async function retryFailedItems(failures: CloneFailure[]): Promise<void> {
+    const targetGuildId = state.lastCloneTargetGuildId;
+    if (!targetGuildId) {
+        notify("Cannot Retry", "No target server from the last clone found.", "error", 6000);
+        return;
+    }
+
+    let succeeded = 0;
+    let failed = 0;
+    const onboardingRetries: CloneFailure[] = [];
+
     for (const failure of failures) {
         try {
-            if (failure.context === "Channel") {
-                const targetGuildId = state.cloneStats ? state.sourceGuildId : null;
-                if (targetGuildId) {
-                    await RestAPI.post({
-                        url: `/guilds/${targetGuildId}/channels`,
-                        body: { name: failure.name, type: 0 },
-                    });
-                }
-            } else if (failure.context === "Role") {
-                const targetGuildId = state.cloneStats ? state.sourceGuildId : null;
-                if (targetGuildId) {
-                    await RestAPI.post({
-                        url: `/guilds/${targetGuildId}/roles`,
-                        body: { name: failure.name, permissions: "0" },
-                    });
-                }
+            let ok = false;
+            switch (failure.context) {
+                case "Role":
+                    ok = await retryRole(failure, targetGuildId);
+                    break;
+                case "Category":
+                    ok = await retryCategory(failure, targetGuildId);
+                    break;
+                case "Channel":
+                    ok = await retryChannel(failure, targetGuildId);
+                    break;
+                case "Emoji":
+                    ok = await retryEmoji(failure, targetGuildId);
+                    break;
+                case "Sticker":
+                    ok = await retrySticker(failure, targetGuildId);
+                    break;
+                case "Soundboard":
+                    ok = await retrySoundboard(failure, targetGuildId);
+                    break;
+                case "Onboarding":
+                    onboardingRetries.push(failure);
+                    continue;
             }
-            notify("Retry Success", `${failure.context}: ${failure.name}`, "success", 4000);
+            if (ok) succeeded++;
+            else failed++;
         } catch (e) {
+            failed++;
             notify(
                 "Retry Failed",
-                `${failure.context}: ${failure.name} - ${(e as Error)?.message || "Unknown error"}`,
+                `${failure.context}: ${failure.name} — ${(e as Error)?.message || "Unknown error"}`,
                 "error",
                 6000
             );
         }
     }
 
-    notify("Retry Complete", "Finished retrying failed items", "info", 5000);
+    if (onboardingRetries.length > 0) {
+        try {
+            await retryOnboarding();
+            succeeded += onboardingRetries.length;
+        } catch (e) {
+            failed += onboardingRetries.length;
+            notify(
+                "Retry Failed",
+                `Onboarding: ${(e as Error)?.message || "Unknown error"}`,
+                "error",
+                6000
+            );
+        }
+    }
+
+    notify(
+        "Retry Complete",
+        `Retried ${failures.length} item(s): ${succeeded} succeeded, ${failed} failed.`,
+        failed > 0 ? "error" : "success",
+        8000
+    );
 }
