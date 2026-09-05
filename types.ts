@@ -30,4 +30,5 @@ export interface CloneFailure {
     context: string;
     name: string;
     error: string;
+    sourceData?: any;
 }

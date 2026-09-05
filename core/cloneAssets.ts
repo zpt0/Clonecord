@@ -58,7 +58,7 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
                         await RestAPI.del({ url: `/guilds/${newGuildId}/stickers/${ts.id}` });
                     });
                 } catch (e) {
-                    console.warn(`[Clonecord] Failed to delete target sticker ${ts.name}:`, e);
+                    console.warn(`[Clonecord] Failed to delete sticker ${ts.name}:`, e);
                 }
             }
             targetStickers = [];
@@ -100,12 +100,7 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
             throwIfCancelled();
 
             try {
-                const formatExt: Record<number, string> = {
-                    1: "png",
-                    2: "png",
-                    3: "json",
-                    4: "gif",
-                };
+                const formatExt: Record<number, string> = { 1: "png", 2: "png", 3: "json", 4: "gif" };
                 const ext = formatExt[sticker.format_type] || "png";
                 const stickerUrl = `https://media.discordapp.net/stickers/${sticker.id}.${ext}`;
 
@@ -120,6 +115,7 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
                         context: "Sticker",
                         name: sticker.name,
                         error: `CDN returned ${response.status}`,
+                        sourceData: sticker,
                     });
                     continue;
                 }
@@ -143,8 +139,7 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
                 await taskQueue.execute(
                     async () => {
                         const authToken = AuthStore?.getToken?.();
-                        if (!authToken)
-                            throw new Error("Could not get auth token for sticker upload");
+                        if (!authToken) throw new Error("Could not get auth token");
 
                         const resp = await fetch(`/api/v9/guilds/${newGuildId}/stickers`, {
                             method: "POST",
@@ -154,9 +149,7 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
 
                         if (!resp.ok) {
                             const errBody = await resp.json().catch(() => ({}));
-                            throw new Error(
-                                errBody.message || `Sticker upload failed: ${resp.status}`
-                            );
+                            throw new Error(errBody.message || `Sticker upload failed: ${resp.status}`);
                         }
                     },
                     (msg) =>
@@ -181,6 +174,7 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
                     context: "Sticker",
                     name: sticker.name,
                     error: (e as Error)?.message || String(e),
+                    sourceData: sticker,
                 });
                 handleCloneError("Sticker", e, sticker.name);
                 step++;
@@ -242,10 +236,7 @@ export async function cloneSoundboard(ctx: CloneContext): Promise<number> {
                         });
                     });
                 } catch (e) {
-                    console.warn(
-                        `[Clonecord] Failed to delete target soundboard sound ${ts.name}:`,
-                        e
-                    );
+                    console.warn(`[Clonecord] Failed to delete soundboard sound ${ts.name}:`, e);
                 }
             }
             targetSounds = [];
@@ -302,6 +293,7 @@ export async function cloneSoundboard(ctx: CloneContext): Promise<number> {
                         context: "Soundboard",
                         name: sound.name,
                         error: `CDN returned ${response.status}`,
+                        sourceData: sound,
                     });
                     step++;
                     continue;
@@ -350,6 +342,7 @@ export async function cloneSoundboard(ctx: CloneContext): Promise<number> {
                     context: "Soundboard",
                     name: sound.name,
                     error: (e as Error)?.message || String(e),
+                    sourceData: sound,
                 });
                 handleCloneError("Soundboard", e, sound.name);
                 step++;
