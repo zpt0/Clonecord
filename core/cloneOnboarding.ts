@@ -21,8 +21,6 @@ export async function cloneOnboarding(ctx: CloneContext) {
                 existingId ||
                 (((BigInt(Date.now()) - 1420070400000n) << 22n) | BigInt(sfI++)).toString();
 
-            const filteredOptions: string[] = [];
-
             const mappedPrompts = (onboarding.prompts || [])
                 .map((prompt: any) => ({
                     id: genId(prompt.id),
@@ -68,18 +66,18 @@ export async function cloneOnboarding(ctx: CloneContext) {
                         })
                         .filter((opt: any) => {
                             const keep = opt.role_ids.length > 0 || opt.channel_ids.length > 0;
-                            if (!keep) filteredOptions.push(opt.title);
+                            if (!keep) {
+                                state.failedItems.push({
+                                    context: "Onboarding",
+                                    name: opt.title,
+                                    error: "No mapped roles or channels — skipped",
+                                    sourceData: opt,
+                                });
+                            }
                             return keep;
                         }),
                 }))
                 .filter((prompt: any) => prompt.options.length > 0);
-
-            if (filteredOptions.length > 0) {
-                console.warn(
-                    `[Clonecord] Filtered out ${filteredOptions.length} onboarding options due to missing roles/channels:`,
-                    filteredOptions
-                );
-            }
 
             const mappedDefaultChannels = (onboarding.default_channel_ids || [])
                 .map((id: string) => channelIdMap[id])
@@ -101,11 +99,6 @@ export async function cloneOnboarding(ctx: CloneContext) {
                 try {
                     await doOnboardingPut(onboarding.enabled);
                 } catch (err: any) {
-                    console.warn(
-                        "[Clonecord] Onboarding requirements check failed. Attempting auto-fix and fallback...",
-                        err.body || err.text
-                    );
-
                     let fixedAny = false;
                     if (err.body?.code === 50035 && err.body?.errors?.default_channel_ids) {
                         const errs = err.body.errors.default_channel_ids;
@@ -133,24 +126,17 @@ export async function cloneOnboarding(ctx: CloneContext) {
                         }
 
                         for (const channelId of channelsToFix) {
-                            console.warn(
-                                `[Clonecord] Auto-fixing @everyone permission for default channel ${channelId}`
-                            );
                             try {
                                 await taskQueue.execute(async () => {
                                     await RestAPI.put({
                                         url: `/channels/${channelId}/permissions/${newGuildId}`,
-                                        body: {
-                                            type: 0,
-                                            allow: "1024",
-                                            deny: "0",
-                                        },
+                                        body: { type: 0, allow: "1024", deny: "0" },
                                     });
                                 });
                                 fixedAny = true;
                             } catch (fixErr) {
                                 console.warn(
-                                    `[Clonecord] Failed to auto-fix permission for ${channelId}:`,
+                                    `[Clonecord] Failed to fix permission for channel ${channelId}:`,
                                     fixErr
                                 );
                             }
@@ -159,30 +145,16 @@ export async function cloneOnboarding(ctx: CloneContext) {
 
                     if (fixedAny) {
                         try {
-                            console.warn(
-                                "[Clonecord] Retrying onboarding after fixing permissions..."
-                            );
                             return await doOnboardingPut(onboarding.enabled);
                         } catch (retryErr: any) {
-                            console.warn(
-                                "[Clonecord] Retry onboarding failed:",
-                                retryErr.body || retryErr.text
-                            );
                             err = retryErr;
                         }
                     }
 
                     if (onboarding.enabled) {
-                        console.warn(
-                            "[Clonecord] Onboarding requirements still not met. Retrying with enabled: false (prompts will still be cloned)."
-                        );
                         try {
                             await doOnboardingPut(false);
                         } catch (err2: any) {
-                            console.error(
-                                "[Clonecord] Onboarding fallback failed:",
-                                err2.body || err2.text
-                            );
                             throw err2;
                         }
                     } else {
