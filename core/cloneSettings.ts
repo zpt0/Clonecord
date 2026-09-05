@@ -72,13 +72,9 @@ export async function cloneSettings(ctx: CloneContext) {
                 if (!errCode && patchError?.text) {
                     try {
                         errCode = JSON.parse(patchError.text).code;
-                    } catch (e) {
-                        console.warn("[Clonecord] Failed to parse error code:", e);
-                    }
+                    } catch {}
                 }
-                if (errCode === 40006) {
-                    console.warn("[Clonecord] Guild settings update blocked by Discord (40006).");
-                } else {
+                if (errCode !== 40006) {
                     throw patchError;
                 }
             }

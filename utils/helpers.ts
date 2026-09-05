@@ -25,22 +25,15 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export function compareVersions(v1: string, v2: string): number {
-    const clean1 = v1.replace(/[^0-9.]/g, "");
-    const clean2 = v2.replace(/[^0-9.]/g, "");
-
-    const parts1 = clean1.split(".").map((n) => parseInt(n) || 0);
-    const parts2 = clean2.split(".").map((n) => parseInt(n) || 0);
-
+    const parts1 = v1.replace(/[^0-9.]/g, "").split(".").map((n) => parseInt(n) || 0);
+    const parts2 = v2.replace(/[^0-9.]/g, "").split(".").map((n) => parseInt(n) || 0);
     const maxLength = Math.max(parts1.length, parts2.length);
-
     for (let i = 0; i < maxLength; i++) {
-        const num1 = parts1[i] || 0;
-        const num2 = parts2[i] || 0;
-
-        if (num1 > num2) return 1;
-        if (num1 < num2) return -1;
+        const a = parts1[i] || 0;
+        const b = parts2[i] || 0;
+        if (a > b) return 1;
+        if (a < b) return -1;
     }
-
     return 0;
 }
 

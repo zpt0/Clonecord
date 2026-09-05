@@ -61,23 +61,15 @@ function isFatalError(error: any): boolean {
 
 export function translateError(error: any): string {
     if (!error) return "Unknown error";
-
     if (typeof error === "string") return error;
     if (error.message === "Cancelled" || error.message?.includes("Cancelled")) return "";
     if (error.message === "Skipped") return "";
 
     const code = getErrorCode(error);
-
-    if (code && DISCORD_ERROR_MAP[code]) {
-        return DISCORD_ERROR_MAP[code];
-    }
-
-    if (error?.status && HTTP_STATUS_MAP[error.status]) {
-        return HTTP_STATUS_MAP[error.status];
-    }
+    if (code && DISCORD_ERROR_MAP[code]) return DISCORD_ERROR_MAP[code];
+    if (error?.status && HTTP_STATUS_MAP[error.status]) return HTTP_STATUS_MAP[error.status];
 
     let message = error?.body?.message || error?.message || "";
-
     if (!message && error?.text) {
         try {
             message = JSON.parse(error.text)?.message || "";
@@ -98,9 +90,7 @@ export function handleCloneError(context: string, error: any, itemName?: string)
     const translated = translateError(error);
     if (!translated) return;
 
-    const errorMsg = itemName
-        ? `[${context}] ${itemName}: ${translated}`
-        : `[${context}]: ${translated}`;
+    const errorMsg = itemName ? `[${context}] ${itemName}: ${translated}` : `[${context}]: ${translated}`;
     state.cloneErrors.push(errorMsg);
 
     if (isFatalError(error)) {
