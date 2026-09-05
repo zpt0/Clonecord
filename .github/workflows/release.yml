@@ -92,15 +92,13 @@ jobs:
 
                   if [ -n "$PREV_TAG" ]; then
                     CONTRIBUTORS=$(git log "${PREV_TAG}..${TAG}" --format="%an|%ae" --no-merges \
-                      | grep -v "^zpt0|" \
-                      | grep -v "^Sayrox|" \
-                      | grep -v "^Ghost|" \
+                      | grep -viE "^(zpt0|zpt0\.dev|sayrox|ghost)\|" \
+                      | grep -vi "claude" \
                       | sort -u)
                   else
                     CONTRIBUTORS=$(git log "${TAG}" --format="%an|%ae" --no-merges \
-                      | grep -v "^zpt0|" \
-                      | grep -v "^Sayrox|" \
-                      | grep -v "^Ghost|" \
+                      | grep -viE "^(zpt0|zpt0\.dev|sayrox|ghost)\|" \
+                      | grep -vi "claude" \
                       | sort -u)
                   fi
 
