@@ -2,7 +2,7 @@ import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/Co
 import { ModalProps, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { Guild } from "@vencord/discord-types";
-import { Menu, React } from "@webpack/common";
+import { Menu, React, GuildStore } from "@webpack/common";
 import { DataStore } from "@api/index";
 
 import "./styles.css";
@@ -14,7 +14,7 @@ import { CloneModal } from "./components/CloneModal";
 import { cloneServer, resumeClone } from "./core/clone";
 import { loadCheckpoint, clearCheckpoint } from "./core/checkpoints";
 import { state } from "./store";
-import { cleanupContainer, notify } from "./utils/notifications";
+import { cleanupContainer, notify, closePill } from "./utils/notifications";
 import { compareVersions } from "./utils/helpers";
 import { registerDevTools, unregisterDevTools } from "./devTools";
 
@@ -46,7 +46,8 @@ async function checkForUpdates(): Promise<void> {
 
     try {
         const lastDismissed = (await DataStore.get("Clonecord-dismissed-version")) as
-            string | undefined;
+            | string
+            | undefined;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -72,36 +73,72 @@ async function checkForUpdates(): Promise<void> {
             const releaseNotes = data.body || "No release notes available.";
             showUpdateModal(latestVersion, releaseNotes);
         }
-    } catch (e) {
-        console.warn("[Clonecord] Update check failed:", e);
+    } catch {
     }
 }
 
 async function checkForUnfinishedClone(): Promise<void> {
+    if (state.isCloning) return;
     try {
         const checkpoint = await loadCheckpoint();
         if (!checkpoint) return;
-        const done = Object.values(checkpoint.progress).reduce((a, b) => a + b, 0);
+
+        const sourceStillExists = !!GuildStore.getGuild(checkpoint.sourceGuildId);
+        const targetStillExists = !!GuildStore.getGuild(checkpoint.targetGuildId);
+        if (!sourceStillExists || !targetStillExists) {
+            await clearCheckpoint();
+            return;
+        }
+
+        const p = checkpoint.progress;
+        const totalCloned =
+            p.channelsCloned + p.categoriesCloned + p.rolesCloned +
+            p.emojisCloned + p.stickersCloned + p.soundboardCloned;
+
+        const opts = checkpoint.options as any;
+        const expectedWork =
+            (opts.cloneChannels ? 1 : 0) +
+            (opts.cloneRoles ? 1 : 0) +
+            (opts.cloneOnboarding ? 1 : 0) +
+            (opts.cloneStickers ? 1 : 0) +
+            (opts.cloneSoundboard ? 1 : 0);
+
+        if (expectedWork === 0) {
+            await clearCheckpoint();
+            return;
+        }
+
+        const ago = Math.round((Date.now() - checkpoint.updatedAt) / 60000);
+        const agoText = ago < 1 ? "just now" : ago === 1 ? "1 min ago" : `${ago} min ago`;
+        const summary = totalCloned > 0
+            ? `${checkpoint.sourceGuildName}: ${totalCloned} items cloned (${agoText})`
+            : `${checkpoint.sourceGuildName} (${agoText})`;
+
         notify(
             "Unfinished Clone Found",
-            `${checkpoint.sourceGuildName}: ${done} items already cloned. Resume or discard.`,
+            `${summary}. Resume or discard?`,
             "info",
-            15000,
+            0,
             [
                 {
                     label: "Resume",
                     type: "default",
-                    onClick: () => resumeClone(checkpoint.runId).catch(() => {}),
+                    onClick: (id) => {
+                        closePill(id);
+                        resumeClone(checkpoint.runId).catch(() => {});
+                    },
                 },
                 {
                     label: "Discard",
                     type: "danger",
-                    onClick: () => clearCheckpoint().catch(() => {}),
+                    onClick: (id) => {
+                        closePill(id);
+                        clearCheckpoint().catch(() => {});
+                    },
                 },
             ]
         );
-    } catch (e) {
-        console.warn("[Clonecord] Checkpoint check failed:", e);
+    } catch {
     }
 }
 
