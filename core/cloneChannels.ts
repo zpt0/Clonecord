@@ -44,19 +44,6 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
     if (options.resumeMode) {
         const targetChResponse = await RestAPI.get({ url: `/guilds/${newGuildId}/channels` });
         existingTargetChannels = targetChResponse.body || [];
-
-        for (const cat of categories) {
-            const match = existingTargetChannels.find(
-                (tc: any) => tc.name === cat.name && tc.type === 4
-            );
-            if (match) channelIdMap[cat.id] = match.id;
-        }
-        for (const ch of otherChannels) {
-            const match = existingTargetChannels.find(
-                (tc: any) => tc.name === ch.name && tc.type === ch.type
-            );
-            if (match) channelIdMap[ch.id] = match.id;
-        }
     }
 
     const categoriesToCreate = options.resumeMode
@@ -139,6 +126,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 context: "Category",
                 name: cat.name,
                 error: (e as Error)?.message || String(e),
+                sourceData: cat,
             });
             handleCloneError("Category", e, cat.name);
         }
@@ -269,10 +257,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                             body: patchBody,
                         });
                     } catch (e) {
-                        console.warn(
-                            `[Clonecord] Failed to patch existing channel emoji: ${ch.name}`,
-                            e
-                        );
+                        console.warn(`[Clonecord] Failed to patch channel emoji: ${ch.name}`, e);
                     }
                 }
             }
@@ -416,6 +401,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 context: "Channel",
                 name: ch.name,
                 error: (e as Error)?.message || String(e),
+                sourceData: ch,
             });
             handleCloneError("Channel", e, ch.name);
         }
