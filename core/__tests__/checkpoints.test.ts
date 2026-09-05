@@ -36,7 +36,7 @@ function makeCheckpoint(overrides: Partial<CloneCheckpoint> = {}): CloneCheckpoi
         emojiIdMap: {},
         progress: { ...emptyProgress(), channelsCloned: 5 },
         updatedAt: Date.now(),
-        completed: false,
+        completedAt: null,
         ...overrides,
     };
 }
@@ -61,7 +61,7 @@ describe("checkpoints", () => {
     });
 
     it("returns null for completed checkpoints", async () => {
-        await saveCheckpoint(makeCheckpoint({ completed: true }));
+        await saveCheckpoint(makeCheckpoint({ completedAt: Date.now() }));
         expect(await loadCheckpoint()).toBeNull();
     });
 

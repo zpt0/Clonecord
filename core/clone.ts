@@ -134,7 +134,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         sourceGuildName: sourceGuild.name,
         targetGuildId: "",
         options: { ...options },
-        completed: false,
+        completedAt: null,
         updatedAt: Date.now(),
     };
     const progress = emptyProgress();
@@ -159,10 +159,6 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     }
                 }
             } catch (e) {
-                console.warn(
-                    "[Clonecord] Failed to fetch channels via raw fetch, falling back to local store",
-                    e
-                );
                 estimateChannels = extractChannels(sourceGuild.id, true)
                     .filter((ch: any) => ch?.name && ch.name !== "___hidden___")
                     .map(normalizeChannel);
@@ -289,9 +285,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
             const appeared = await waitForGuildInStore(newGuildId);
             if (!appeared) {
-                console.warn(
-                    `[Clonecord] New guild ${newGuildId} not yet in GuildStore, proceeding anyway`
-                );
+                console.warn(`[Clonecord] New guild ${newGuildId} not yet in GuildStore`);
             }
 
             NavigationRouterTransitionToGuild(newGuildId);
@@ -361,8 +355,13 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         throwIfCancelled();
 
         let stickersCloned = 0;
+        let sourceStickerCount = 0;
         if (options.cloneStickers) {
             updateWithTime("Cloning stickers...", stickersProgressStart);
+            try {
+                const sourceStickersResp = await RestAPI.get({ url: `/guilds/${sourceGuild.id}/stickers` });
+                sourceStickerCount = ((sourceStickersResp as any).body || []).length;
+            } catch {}
             stickersCloned = await cloneStickers(ctx);
             progress.stickersCloned = stickersCloned;
             await snapshot();
@@ -371,8 +370,14 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         throwIfCancelled();
 
         let soundboardCloned = 0;
+        let sourceSoundboardCount = 0;
         if (options.cloneSoundboard) {
             updateWithTime("Cloning soundboard...", soundboardProgressStart);
+            try {
+                const sourceSoundsResp = await RestAPI.get({ url: `/guilds/${sourceGuild.id}/soundboard-sounds` });
+                const body = (sourceSoundsResp as any).body;
+                sourceSoundboardCount = (body?.items || body || []).length;
+            } catch {}
             soundboardCloned = await cloneSoundboard(ctx);
             progress.soundboardCloned = soundboardCloned;
             await snapshot();
@@ -451,9 +456,23 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
             onboardingCloned,
         };
 
-        updateProgress(100);
+        state.lastCloneSourceGuildId = sourceGuild.id;
+        state.lastCloneTargetGuildId = newGuildId;
+        state.lastCloneRoleIdMap = { ...ctx.roleIdMap };
+        state.lastCloneChannelIdMap = { ...ctx.channelIdMap };
+        state.lastCloneEmojiIdMap = { ...state.emojiIdMap };
 
-        completeMainProgress(pillId, `${sourceGuild.name} cloned successfully!`, true);
+        updateProgress(100);
+        await clearCheckpoint();
+
+        const hasFailures = state.failedItems.length > 0;
+        completeMainProgress(
+            pillId,
+            hasFailures
+                ? `${sourceGuild.name} cloned with ${state.failedItems.length} error${state.failedItems.length > 1 ? "s" : ""}`
+                : `${sourceGuild.name} cloned!`,
+            !hasFailures
+        );
 
         try {
             const targetGuild = GuildStore.getGuild(newGuildId);
@@ -461,6 +480,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                 source: fullGuildData,
                 targetTier: (targetGuild as any)?.premiumTier || 0,
                 sourceTier: fullGuildData?.premium_tier || 0,
+                sourceStickerCount,
+                sourceSoundboardCount,
                 options: {
                     cloneChannels: options.cloneChannels,
                     cloneRoles: options.cloneRoles,
@@ -478,8 +499,6 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         } catch {
             showCloneSummary(state.cloneStats, state.failedItems);
         }
-
-        await clearCheckpoint();
     } catch (e: any) {
         if (e?.message === "Cancelled") {
             if (state.mainProgressNotificationId) {
