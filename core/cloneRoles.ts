@@ -100,7 +100,7 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
                     });
                     targetEmojis = (targetEmojisResp as any).body || [];
                 } catch (e) {
-                    console.warn("[Clonecord] Failed to fetch target emojis for resume mode:", e);
+                    console.warn("[Clonecord] Failed to fetch target emojis for resume:", e);
                 }
             }
 
@@ -162,6 +162,7 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
                         context: "Emoji",
                         name: emoji.name,
                         error: (e as Error)?.message || String(e),
+                        sourceData: emoji,
                     });
                     handleCloneError("Emoji", e, emoji.name);
                 }
@@ -169,7 +170,7 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
 
             await Promise.all(emojiPromises);
         } catch (e) {
-            console.warn("[Clonecord] Failed to fetch source emojis for extraction:", e);
+            console.warn("[Clonecord] Failed to fetch source emojis:", e);
         }
     }
 
@@ -227,11 +228,9 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
 
     if (options.resumeMode) {
         for (const role of sortedRoles) {
-            const match = existingTargetRoles.find(
-                (r: any) => r.name === role.name && r.name !== "@everyone"
-            );
+            if (!roleIdMap[role.id]) continue;
+            const match = existingTargetRoles.find((r: any) => r.id === roleIdMap[role.id]);
             if (match) {
-                roleIdMap[role.id] = match.id;
                 const expectedName = replaceEmojis(role.name) || role.name;
                 if (match.name !== expectedName) {
                     try {
@@ -240,10 +239,7 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
                             body: { name: expectedName },
                         });
                     } catch (e) {
-                        console.warn(
-                            `[Clonecord] Failed to patch existing role emoji: ${role.name}`,
-                            e
-                        );
+                        console.warn(`[Clonecord] Failed to patch role emoji: ${role.name}`, e);
                     }
                 }
             }
@@ -305,9 +301,7 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
                         if (!code && e?.text) {
                             try {
                                 code = JSON.parse(e.text)?.code;
-                            } catch (e) {
-                                console.warn("[Clonecord] Failed to parse error code:", e);
-                            }
+                            } catch {}
                         }
                         if (code === 50101) {
                             delete rolePayload.icon;
@@ -356,6 +350,7 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
                 context: "Role",
                 name: role.name,
                 error: (e as Error)?.message || String(e),
+                sourceData: role,
             });
             handleCloneError("Role", e, role.name);
         }
