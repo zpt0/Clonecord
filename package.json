@@ -31,7 +31,7 @@
         "@eslint/js": "^10.0.1",
         "@types/node": "^26.4.0",
         "@types/react": "^19.2.18",
-        "@vencord/discord-types": "^1.0.0",
+        "@vencord/discord-types": "^1.0.2",
         "@vitest/coverage-v8": "^4.1.11",
         "eslint": "^10.9.1",
         "eslint-config-prettier": "^10.1.8",
