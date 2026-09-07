@@ -32,7 +32,7 @@
         "@types/node": "^26.4.0",
         "@types/react": "^19.2.18",
         "@vencord/discord-types": "^1.0.0",
-        "@vitest/coverage-v8": "^4.1.11",
+        "@vitest/coverage-v8": "^5.0.0",
         "eslint": "^10.9.1",
         "eslint-config-prettier": "^10.1.8",
         "prettier": "^3.9.6",
