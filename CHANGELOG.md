@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.3]
+
+- Autolink bare URLs in update-modal release notes (trailing sentence punctuation excluded) and open release links in the external browser
+
 ## [1.2.2]
 
 - Fix update modal showing raw markdown in one line: release notes are now rendered as real markdown (bold headings, paragraphs, lists, inline code, clickable links) with proper line breaks
