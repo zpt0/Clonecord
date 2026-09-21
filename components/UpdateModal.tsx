@@ -7,7 +7,7 @@ import {
     ModalContent,
     ModalFooter,
 } from "@utils/modal";
-import { Button, ChannelStore, NavigationRouter, InviteActions, Parser } from "@webpack/common";
+import { Button, ChannelStore, NavigationRouter, InviteActions } from "@webpack/common";
 import { openInviteModal } from "@utils/discord";
 import {
     GITHUB_RELEASE_URL,
@@ -15,7 +15,7 @@ import {
     UPDATES_CHANNEL_ID,
     SUPPORT_INVITE_CODE,
 } from "../constants";
-import { formatReleaseNotesForDiscord } from "../utils/helpers";
+import { parseReleaseBlocks, parseReleaseInline, type ReleaseInlineNode } from "../utils/helpers";
 
 const DISMISSED_KEY = "Clonecord-dismissed-version";
 
@@ -59,6 +59,134 @@ export async function navigateToUpdatesChannel(): Promise<void> {
         // Fallback: open invite modal
         openInviteModal(SUPPORT_INVITE_CODE);
     }
+}
+
+function renderReleaseInline(nodes: ReleaseInlineNode[], keyPrefix: string) {
+    return nodes.map((node, index) => {
+        const key = `${keyPrefix}-${index}`;
+        switch (node.kind) {
+            case "bold":
+                return <strong key={key}>{renderReleaseInline(node.children, key)}</strong>;
+            case "italic":
+                return <em key={key}>{renderReleaseInline(node.children, key)}</em>;
+            case "strike":
+                return <s key={key}>{renderReleaseInline(node.children, key)}</s>;
+            case "code":
+                return (
+                    <code
+                        key={key}
+                        style={{
+                            fontFamily: "Consolas, monospace",
+                            backgroundColor: "var(--background-tertiary)",
+                            borderRadius: 3,
+                            padding: "0 4px",
+                        }}
+                    >
+                        {node.text}
+                    </code>
+                );
+            case "link":
+                return (
+                    <a
+                        key={key}
+                        href={node.url}
+                        style={{ color: "var(--text-link, #00a8fc)", cursor: "pointer" }}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            window.open(node.url, "_blank");
+                        }}
+                    >
+                        {node.text}
+                    </a>
+                );
+            default:
+                return <span key={key}>{node.text}</span>;
+        }
+    });
+}
+
+function renderReleaseNotes(notes: string) {
+    const blocks = parseReleaseBlocks(notes);
+    if (blocks.length === 0) return "No release notes available.";
+    return blocks.map((block, index) => {
+        switch (block.kind) {
+            case "heading":
+                return (
+                    <div
+                        key={index}
+                        style={{ fontWeight: 700, fontSize: "15px", margin: "4px 0 6px" }}
+                    >
+                        {renderReleaseInline(parseReleaseInline(block.text), `h${index}`)}
+                    </div>
+                );
+            case "list":
+                return (
+                    <div key={index} style={{ margin: "0 0 8px" }}>
+                        {block.items.map((item, itemIndex) => (
+                            <div key={itemIndex} style={{ display: "flex", gap: 6 }}>
+                                <span>{block.ordered ? `${itemIndex + 1}.` : "•"}</span>
+                                <span>
+                                    {renderReleaseInline(
+                                        parseReleaseInline(item),
+                                        `li${index}-${itemIndex}`
+                                    )}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                );
+            case "code":
+                return (
+                    <pre
+                        key={index}
+                        style={{
+                            backgroundColor: "var(--background-tertiary)",
+                            borderRadius: 4,
+                            padding: 8,
+                            overflowX: "auto",
+                            whiteSpace: "pre-wrap",
+                        }}
+                    >
+                        {block.text}
+                    </pre>
+                );
+            case "quote":
+                return (
+                    <div
+                        key={index}
+                        style={{
+                            borderLeft: "2px solid var(--background-modifier-accent)",
+                            paddingLeft: 8,
+                            opacity: 0.9,
+                            margin: "0 0 8px",
+                        }}
+                    >
+                        {block.lines.map((line, lineIndex) => (
+                            <div key={lineIndex}>
+                                {renderReleaseInline(
+                                    parseReleaseInline(line),
+                                    `q${index}-${lineIndex}`
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                );
+            default:
+                return (
+                    <div key={index} style={{ margin: "0 0 8px" }}>
+                        {block.lines.map((line, lineIndex) => (
+                            <span key={lineIndex}>
+                                {lineIndex > 0 && <br />}
+                                {renderReleaseInline(
+                                    parseReleaseInline(line),
+                                    `p${index}-${lineIndex}`
+                                )}
+                            </span>
+                        ))}
+                    </div>
+                );
+        }
+    });
 }
 
 function UpdateModalInner({
@@ -185,7 +313,7 @@ function UpdateModalInner({
                                 overflowWrap: "break-word",
                             }}
                         >
-                            {Parser.parse(formatReleaseNotesForDiscord(releaseNotes), true)}
+                            {renderReleaseNotes(releaseNotes)}
                         </div>
                     </div>
                 </div>

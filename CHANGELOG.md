@@ -2,7 +2,7 @@
 
 ## [1.2.2]
 
-- Fix update modal rendering release notes as one line: GitHub markdown is now converted for Discord's parser (headings become bold, single line breaks become paragraphs, `---` rules dropped, code blocks untouched)
+- Fix update modal showing raw markdown in one line: release notes are now rendered as real markdown (bold headings, paragraphs, lists, inline code, clickable links) with proper line breaks
 - Align clone-gap, checkpoint, and task-queue tests with current behavior (clean runs report no gaps, fresh checkpoints are ignored, adaptive concurrency starts half-open)
 - Fix lint error in onboarding retry path
 
