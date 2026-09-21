@@ -46,8 +46,7 @@ async function checkForUpdates(): Promise<void> {
 
     try {
         const lastDismissed = (await DataStore.get("Clonecord-dismissed-version")) as
-            | string
-            | undefined;
+            string | undefined;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -73,8 +72,7 @@ async function checkForUpdates(): Promise<void> {
             const releaseNotes = data.body || "No release notes available.";
             showUpdateModal(latestVersion, releaseNotes);
         }
-    } catch {
-    }
+    } catch {}
 }
 
 async function checkForUnfinishedClone(): Promise<void> {
@@ -92,8 +90,12 @@ async function checkForUnfinishedClone(): Promise<void> {
 
         const p = checkpoint.progress;
         const totalCloned =
-            p.channelsCloned + p.categoriesCloned + p.rolesCloned +
-            p.emojisCloned + p.stickersCloned + p.soundboardCloned;
+            p.channelsCloned +
+            p.categoriesCloned +
+            p.rolesCloned +
+            p.emojisCloned +
+            p.stickersCloned +
+            p.soundboardCloned;
 
         const opts = checkpoint.options as any;
         const expectedWork =
@@ -110,36 +112,30 @@ async function checkForUnfinishedClone(): Promise<void> {
 
         const ago = Math.round((Date.now() - checkpoint.updatedAt) / 60000);
         const agoText = ago < 1 ? "just now" : ago === 1 ? "1 min ago" : `${ago} min ago`;
-        const summary = totalCloned > 0
-            ? `${checkpoint.sourceGuildName}: ${totalCloned} items cloned (${agoText})`
-            : `${checkpoint.sourceGuildName} (${agoText})`;
+        const summary =
+            totalCloned > 0
+                ? `${checkpoint.sourceGuildName}: ${totalCloned} items cloned (${agoText})`
+                : `${checkpoint.sourceGuildName} (${agoText})`;
 
-        notify(
-            "Unfinished Clone Found",
-            `${summary}. Resume or discard?`,
-            "info",
-            0,
-            [
-                {
-                    label: "Resume",
-                    type: "default",
-                    onClick: (id) => {
-                        closePill(id);
-                        resumeClone(checkpoint.runId).catch(() => {});
-                    },
+        notify("Unfinished Clone Found", `${summary}. Resume or discard?`, "info", 0, [
+            {
+                label: "Resume",
+                type: "default",
+                onClick: (id) => {
+                    closePill(id);
+                    resumeClone(checkpoint.runId).catch(() => {});
                 },
-                {
-                    label: "Discard",
-                    type: "danger",
-                    onClick: (id) => {
-                        closePill(id);
-                        clearCheckpoint().catch(() => {});
-                    },
+            },
+            {
+                label: "Discard",
+                type: "danger",
+                onClick: (id) => {
+                    closePill(id);
+                    clearCheckpoint().catch(() => {});
                 },
-            ]
-        );
-    } catch {
-    }
+            },
+        ]);
+    } catch {}
 }
 
 const guildContextMenuPatch: NavContextMenuPatchCallback = (

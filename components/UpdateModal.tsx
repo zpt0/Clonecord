@@ -15,6 +15,7 @@ import {
     UPDATES_CHANNEL_ID,
     SUPPORT_INVITE_CODE,
 } from "../constants";
+import { formatReleaseNotesForDiscord } from "../utils/helpers";
 
 const DISMISSED_KEY = "Clonecord-dismissed-version";
 
@@ -180,9 +181,11 @@ function UpdateModalInner({
                                 color: "#FFFFFF",
                                 lineHeight: "1.5",
                                 fontSize: "14px",
+                                whiteSpace: "pre-wrap",
+                                overflowWrap: "break-word",
                             }}
                         >
-                            {Parser.parse(releaseNotes, true)}
+                            {Parser.parse(formatReleaseNotesForDiscord(releaseNotes), true)}
                         </div>
                     </div>
                 </div>

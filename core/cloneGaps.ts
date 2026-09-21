@@ -26,7 +26,15 @@ export interface GapCheckInput {
 
 export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
     const gaps: CloneGap[] = [];
-    const { source, targetTier, sourceTier, sourceStickerCount, sourceSoundboardCount, options, stats } = input;
+    const {
+        source,
+        targetTier,
+        sourceTier,
+        sourceStickerCount,
+        sourceSoundboardCount,
+        options,
+        stats,
+    } = input;
     if (!source) return gaps;
 
     if (source.vanity_url_code) {
@@ -41,10 +49,8 @@ export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
         const lost: string[] = [];
         if (sourceTier >= 1 && targetTier < 1)
             lost.push("sticker slots, 128kbps voice, invite background");
-        if (sourceTier >= 2 && targetTier < 2)
-            lost.push("role icons, 256kbps voice");
-        if (sourceTier >= 3 && targetTier < 3)
-            lost.push("384kbps voice, animated banner");
+        if (sourceTier >= 2 && targetTier < 2) lost.push("role icons, 256kbps voice");
+        if (sourceTier >= 3 && targetTier < 3) lost.push("384kbps voice, animated banner");
         gaps.push({
             title: "Boost Level",
             detail: `Source tier ${sourceTier} → target tier ${targetTier}: ${lost.join(", ")}.`,
@@ -60,7 +66,12 @@ export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
         });
     }
 
-    if (options.cloneStickers && sourceStickerCount && sourceStickerCount > 0 && stats.stickersCloned === 0) {
+    if (
+        options.cloneStickers &&
+        sourceStickerCount &&
+        sourceStickerCount > 0 &&
+        stats.stickersCloned === 0
+    ) {
         gaps.push({
             title: "Stickers",
             detail: "No stickers could be cloned — slots may be full.",
@@ -68,7 +79,12 @@ export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
         });
     }
 
-    if (options.cloneSoundboard && sourceSoundboardCount && sourceSoundboardCount > 0 && stats.soundboardCloned === 0) {
+    if (
+        options.cloneSoundboard &&
+        sourceSoundboardCount &&
+        sourceSoundboardCount > 0 &&
+        stats.soundboardCloned === 0
+    ) {
         gaps.push({
             title: "Soundboard",
             detail: "No sounds could be cloned — slots may be full.",

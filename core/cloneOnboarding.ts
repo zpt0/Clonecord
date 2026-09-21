@@ -152,11 +152,7 @@ export async function cloneOnboarding(ctx: CloneContext) {
                     }
 
                     if (onboarding.enabled) {
-                        try {
-                            await doOnboardingPut(false);
-                        } catch (err2: any) {
-                            throw err2;
-                        }
+                        await doOnboardingPut(false);
                     } else {
                         throw err;
                     }

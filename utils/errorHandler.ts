@@ -90,7 +90,9 @@ export function handleCloneError(context: string, error: any, itemName?: string)
     const translated = translateError(error);
     if (!translated) return;
 
-    const errorMsg = itemName ? `[${context}] ${itemName}: ${translated}` : `[${context}]: ${translated}`;
+    const errorMsg = itemName
+        ? `[${context}] ${itemName}: ${translated}`
+        : `[${context}]: ${translated}`;
     state.cloneErrors.push(errorMsg);
 
     if (isFatalError(error)) {

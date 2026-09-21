@@ -25,8 +25,14 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export function compareVersions(v1: string, v2: string): number {
-    const parts1 = v1.replace(/[^0-9.]/g, "").split(".").map((n) => parseInt(n) || 0);
-    const parts2 = v2.replace(/[^0-9.]/g, "").split(".").map((n) => parseInt(n) || 0);
+    const parts1 = v1
+        .replace(/[^0-9.]/g, "")
+        .split(".")
+        .map((n) => parseInt(n) || 0);
+    const parts2 = v2
+        .replace(/[^0-9.]/g, "")
+        .split(".")
+        .map((n) => parseInt(n) || 0);
     const maxLength = Math.max(parts1.length, parts2.length);
     for (let i = 0; i < maxLength; i++) {
         const a = parts1[i] || 0;
@@ -35,6 +41,35 @@ export function compareVersions(v1: string, v2: string): number {
         if (a < b) return -1;
     }
     return 0;
+}
+
+/**
+ * Convert GitHub-flavored release notes to something Discord's message
+ * parser renders correctly: Discord has no `#` headings (they would show
+ * literally) and collapses single newlines into spaces (everything ends up
+ * on one line). Fenced code blocks are left untouched.
+ */
+export function formatReleaseNotesForDiscord(notes: string): string {
+    const normalized = (notes || "").replace(/\r\n/g, "\n");
+    const formatted = normalized
+        .split(/(```[\s\S]*?(?:```|$))/g)
+        .map((segment, index) => {
+            // Odd segments are fenced code blocks — leave them alone.
+            if (index % 2 === 1) return segment;
+            const converted = segment
+                .split("\n")
+                .map((line) => {
+                    const heading = line.match(/^#{1,6}\s+(.*)$/);
+                    if (heading) return `**${heading[1].trim()}**`;
+                    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) return "";
+                    return line;
+                })
+                .join("\n");
+            // Single newlines become paragraph breaks; existing blank lines stay.
+            return converted.replace(/(?<!\n)\n(?!\n)/g, "\n\n");
+        })
+        .join("");
+    return formatted.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export const replaceEmojis = (text: string | null | undefined): string | null | undefined => {

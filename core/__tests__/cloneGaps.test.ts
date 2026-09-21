@@ -13,10 +13,9 @@ function baseInput(overrides: Partial<GapCheckInput> = {}): GapCheckInput {
 }
 
 describe("collectCloneGaps", () => {
-    it("returns only the never-cloned note for a clean identical run", () => {
+    it("returns no gaps for a clean identical run", () => {
         const gaps = collectCloneGaps(baseInput());
-        expect(gaps).toHaveLength(1);
-        expect(gaps[0].title).toBe("Never cloned via API");
+        expect(gaps).toHaveLength(0);
     });
 
     it("flags a vanity URL on the source", () => {
@@ -31,24 +30,43 @@ describe("collectCloneGaps", () => {
 
     it("flags boost tier downgrades", () => {
         const gaps = collectCloneGaps(baseInput({ sourceTier: 3, targetTier: 0 }));
-        const boost = gaps.find((g) => g.title.includes("Boost level"));
+        const boost = gaps.find((g) => g.title.includes("Boost Level"));
         expect(boost).toBeDefined();
         expect(boost!.detail).toContain("384kbps");
     });
 
-    it("flags skipped server features", () => {
+    it("flags a skipped server description when onboarding is disabled", () => {
         const gaps = collectCloneGaps(
             baseInput({
-                source: { features: ["COMMUNITY", "VANITY_URL", "BANNER"], premium_tier: 0 },
+                source: { features: [], premium_tier: 0, description: "Hello" },
+                options: { cloneChannels: true, cloneRoles: true, cloneOnboarding: false },
             })
         );
-        const features = gaps.find((g) => g.title.includes("features"));
-        expect(features).toBeDefined();
-        expect(features!.detail).toContain("VANITY_URL");
-        expect(features!.detail).not.toContain("COMMUNITY");
+        const description = gaps.find((g) => g.title.includes("Description"));
+        expect(description).toBeDefined();
+        expect(description!.detail).toContain("description not copied");
     });
 
     it("flags empty sticker/soundboard results when enabled", () => {
+        const gaps = collectCloneGaps(
+            baseInput({
+                sourceStickerCount: 5,
+                sourceSoundboardCount: 3,
+                options: {
+                    cloneChannels: true,
+                    cloneRoles: true,
+                    cloneOnboarding: true,
+                    cloneStickers: true,
+                    cloneSoundboard: true,
+                },
+                stats: { stickersCloned: 0, soundboardCloned: 0, onboardingCloned: true },
+            })
+        );
+        expect(gaps.some((g) => g.title.includes("Stickers"))).toBe(true);
+        expect(gaps.some((g) => g.title.includes("Soundboard"))).toBe(true);
+    });
+
+    it("flags nothing without source counts even when nothing was cloned", () => {
         const gaps = collectCloneGaps(
             baseInput({
                 options: {
@@ -61,11 +79,11 @@ describe("collectCloneGaps", () => {
                 stats: { stickersCloned: 0, soundboardCloned: 0, onboardingCloned: true },
             })
         );
-        expect(gaps.some((g) => g.title.includes("stickers"))).toBe(true);
-        expect(gaps.some((g) => g.title.includes("soundboard"))).toBe(true);
+        expect(gaps.some((g) => g.title.includes("Stickers"))).toBe(false);
+        expect(gaps.some((g) => g.title.includes("Soundboard"))).toBe(false);
     });
 
-    it("returns no gaps without source data except the static note", () => {
+    it("returns no gaps without source data", () => {
         const gaps = collectCloneGaps(baseInput({ source: null }));
         expect(gaps).toHaveLength(0);
     });

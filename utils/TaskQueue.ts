@@ -129,9 +129,14 @@ export class TaskQueue {
                         this.successSinceScale = 0;
 
                         const oldConcurrency = this.currentConcurrency;
-                        this.currentConcurrency = Math.max(1, Math.floor(this.currentConcurrency / 2));
+                        this.currentConcurrency = Math.max(
+                            1,
+                            Math.floor(this.currentConcurrency / 2)
+                        );
                         if (oldConcurrency !== this.currentConcurrency) {
-                            console.warn(`[Clonecord] 429 — downscaling concurrency ${oldConcurrency} → ${this.currentConcurrency}`);
+                            console.warn(
+                                `[Clonecord] 429 — downscaling concurrency ${oldConcurrency} → ${this.currentConcurrency}`
+                            );
                         }
 
                         if (this.consecutive429 >= TaskQueue.MAX_CONSECUTIVE_429) {
@@ -148,7 +153,9 @@ export class TaskQueue {
                         if (newPauseUntil > this.pausedUntil) {
                             this.pausedUntil = newPauseUntil;
                             if (statusUpdateCb)
-                                statusUpdateCb(`Rate limited — waiting ${Math.ceil(retryAfter / 1000)}s`);
+                                statusUpdateCb(
+                                    `Rate limited — waiting ${Math.ceil(retryAfter / 1000)}s`
+                                );
                         }
 
                         await sleep(retryAfter);
@@ -158,7 +165,9 @@ export class TaskQueue {
                     if (e?.status === 403) {
                         let errorCode = e?.body?.code || 0;
                         if (!errorCode && e?.text) {
-                            try { errorCode = JSON.parse(e.text)?.code || 0; } catch {}
+                            try {
+                                errorCode = JSON.parse(e.text)?.code || 0;
+                            } catch {}
                         }
                         if (errorCode === 50101) throw e;
                         if (i < retries - 1) {

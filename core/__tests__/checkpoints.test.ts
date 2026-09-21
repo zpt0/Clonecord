@@ -47,13 +47,19 @@ describe("checkpoints", () => {
     });
 
     it("round-trips a checkpoint", async () => {
-        const cp = makeCheckpoint();
+        const cp = makeCheckpoint({ updatedAt: Date.now() - 61_000 });
         await saveCheckpoint(cp);
         const loaded = await loadCheckpoint();
         expect(loaded).not.toBeNull();
         expect(loaded!.runId).toBe(cp.runId);
         expect(loaded!.channelIdMap).toEqual({ c1: "nc1" });
         expect(loaded!.progress.channelsCloned).toBe(5);
+    });
+
+    it("ignores checkpoints saved less than a minute ago", async () => {
+        // A just-written checkpoint belongs to an active run, not a stale session.
+        await saveCheckpoint(makeCheckpoint({ updatedAt: Date.now() }));
+        expect(await loadCheckpoint()).toBeNull();
     });
 
     it("returns null when nothing saved", async () => {

@@ -100,7 +100,12 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
             throwIfCancelled();
 
             try {
-                const formatExt: Record<number, string> = { 1: "png", 2: "png", 3: "json", 4: "gif" };
+                const formatExt: Record<number, string> = {
+                    1: "png",
+                    2: "png",
+                    3: "json",
+                    4: "gif",
+                };
                 const ext = formatExt[sticker.format_type] || "png";
                 const stickerUrl = `https://media.discordapp.net/stickers/${sticker.id}.${ext}`;
 
@@ -149,7 +154,9 @@ export async function cloneStickers(ctx: CloneContext): Promise<number> {
 
                         if (!resp.ok) {
                             const errBody = await resp.json().catch(() => ({}));
-                            throw new Error(errBody.message || `Sticker upload failed: ${resp.status}`);
+                            throw new Error(
+                                errBody.message || `Sticker upload failed: ${resp.status}`
+                            );
                         }
                     },
                     (msg) =>

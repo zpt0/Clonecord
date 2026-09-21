@@ -55,7 +55,7 @@ jobs:
                   for dir in core components utils; do
                     if [ -d "$dir" ]; then
                       mkdir -p "${STAGING_DIR}/${dir}"
-                      find "$dir" -name "*.ts" -o -name "*.tsx" | while read f; do
+                      find "$dir" \( -name "*.ts" -o -name "*.tsx" -o -name "*.css" \) | while read f; do
                         mkdir -p "${STAGING_DIR}/$(dirname "$f")"
                         cp "$f" "${STAGING_DIR}/$f"
                       done

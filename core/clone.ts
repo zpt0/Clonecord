@@ -359,7 +359,9 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         if (options.cloneStickers) {
             updateWithTime("Cloning stickers...", stickersProgressStart);
             try {
-                const sourceStickersResp = await RestAPI.get({ url: `/guilds/${sourceGuild.id}/stickers` });
+                const sourceStickersResp = await RestAPI.get({
+                    url: `/guilds/${sourceGuild.id}/stickers`,
+                });
                 sourceStickerCount = ((sourceStickersResp as any).body || []).length;
             } catch {}
             stickersCloned = await cloneStickers(ctx);
@@ -374,7 +376,9 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         if (options.cloneSoundboard) {
             updateWithTime("Cloning soundboard...", soundboardProgressStart);
             try {
-                const sourceSoundsResp = await RestAPI.get({ url: `/guilds/${sourceGuild.id}/soundboard-sounds` });
+                const sourceSoundsResp = await RestAPI.get({
+                    url: `/guilds/${sourceGuild.id}/soundboard-sounds`,
+                });
                 const body = (sourceSoundsResp as any).body;
                 sourceSoundboardCount = (body?.items || body || []).length;
             } catch {}

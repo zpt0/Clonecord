@@ -23,7 +23,8 @@ describe("TaskQueue.getStatus", () => {
         expect(status.throttled).toBe(false);
         expect(status.throttledSecondsLeft).toBe(0);
         expect(status.consecutive429).toBe(0);
-        expect(status.currentConcurrency).toBe(5);
+        // Adaptive concurrency starts at half the max and ramps up with successes.
+        expect(status.currentConcurrency).toBe(2);
         expect(status.maxConcurrency).toBe(5);
         expect(status.avgRequestMs).toBe(0);
         expect(status.completedRequests).toBe(0);

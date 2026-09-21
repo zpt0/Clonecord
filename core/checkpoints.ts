@@ -75,10 +75,14 @@ export async function clearCheckpoint(): Promise<void> {
             await DataStore.set(CHECKPOINT_KEY, { ...raw, completedAt: Date.now() });
         }
         setTimeout(async () => {
-            try { await DataStore.delete(CHECKPOINT_KEY); } catch {}
+            try {
+                await DataStore.delete(CHECKPOINT_KEY);
+            } catch {}
         }, 60000);
     } catch (e) {
-        try { await DataStore.delete(CHECKPOINT_KEY); } catch {}
+        try {
+            await DataStore.delete(CHECKPOINT_KEY);
+        } catch {}
     }
 }
 

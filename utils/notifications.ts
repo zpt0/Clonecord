@@ -440,7 +440,9 @@ export function showCloneSummary(
 
     container.appendChild(pill);
 
-    document.getElementById(btnIds.close)?.addEventListener("click", () => closePill(notificationId));
+    document
+        .getElementById(btnIds.close)
+        ?.addEventListener("click", () => closePill(notificationId));
 
     if (hasFailures) {
         document.getElementById(btnIds.retry)?.addEventListener("click", async () => {
@@ -616,7 +618,8 @@ async function retryChannel(failure: CloneFailure, targetGuildId: string): Promi
                 };
             }
         }
-        if (ch?.default_sort_order !== undefined) chPayload.default_sort_order = ch.default_sort_order;
+        if (ch?.default_sort_order !== undefined)
+            chPayload.default_sort_order = ch.default_sort_order;
         if (ch?.default_forum_layout !== undefined)
             chPayload.default_forum_layout = ch.default_forum_layout;
     }

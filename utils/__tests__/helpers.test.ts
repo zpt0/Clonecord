@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { sleep, randomDelay, compareVersions, arrayBufferToBase64, escapeHtml } from "../helpers";
+import {
+    sleep,
+    randomDelay,
+    compareVersions,
+    arrayBufferToBase64,
+    escapeHtml,
+    formatReleaseNotesForDiscord,
+} from "../helpers";
 
 describe("sleep", () => {
     beforeEach(() => {
@@ -125,5 +132,40 @@ describe("escapeHtml", () => {
 
     it("returns string unchanged when no special characters", () => {
         expect(escapeHtml("Hello World 123")).toBe("Hello World 123");
+    });
+});
+
+describe("formatReleaseNotesForDiscord", () => {
+    it("converts headings to bold since Discord has no headings", () => {
+        expect(formatReleaseNotesForDiscord("## What's Changed")).toBe("**What's Changed**");
+        expect(formatReleaseNotesForDiscord("### Clone engine")).toBe("**Clone engine**");
+    });
+
+    it("turns single newlines into paragraph breaks", () => {
+        expect(formatReleaseNotesForDiscord("line one\nline two")).toBe("line one\n\nline two");
+    });
+
+    it("keeps existing blank lines without stacking", () => {
+        expect(formatReleaseNotesForDiscord("para one\n\npara two")).toBe("para one\n\npara two");
+        expect(formatReleaseNotesForDiscord("a\n\n\n\nb")).toBe("a\n\nb");
+    });
+
+    it("drops horizontal rules", () => {
+        expect(formatReleaseNotesForDiscord("above\n---\nbelow")).toBe("above\n\nbelow");
+    });
+
+    it("leaves fenced code blocks untouched", () => {
+        const input = "intro\n```\n## not a heading\nline one\nline two\n```\noutro";
+        expect(formatReleaseNotesForDiscord(input)).toBe(
+            "intro\n\n```\n## not a heading\nline one\nline two\n```\n\noutro"
+        );
+    });
+
+    it("normalizes CRLF and trims", () => {
+        expect(formatReleaseNotesForDiscord("\r\n## Title\r\nbody\r\n")).toBe("**Title**\n\nbody");
+    });
+
+    it("handles empty input", () => {
+        expect(formatReleaseNotesForDiscord("")).toBe("");
     });
 });
