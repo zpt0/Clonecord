@@ -29,15 +29,15 @@
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
-        "@types/node": "^26.4.0",
-        "@types/react": "^19.2.18",
+        "@types/node": "^26.6.1",
+        "@types/react": "^19.3.0",
         "@vencord/discord-types": "^1.0.0",
-        "@vitest/coverage-v8": "^4.1.11",
+        "@vitest/coverage-v8": "^5.0.1",
         "eslint": "^10.9.1",
         "eslint-config-prettier": "^10.1.8",
-        "prettier": "^3.9.6",
+        "prettier": "^3.9.8",
         "typescript": "^5.3.0",
-        "typescript-eslint": "^8.68.0",
-        "vitest": "^4.1.11"
+        "typescript-eslint": "^8.70.0",
+        "vitest": "^5.0.1"
     }
 }
