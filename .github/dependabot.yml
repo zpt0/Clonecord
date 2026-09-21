@@ -10,3 +10,8 @@ updates:
       assignees:
           - "zpt0"
       open-pull-requests-limit: 10
+      groups:
+          vitest:
+              patterns:
+                  - "vitest"
+                  - "@vitest/*"
