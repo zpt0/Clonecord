@@ -33,7 +33,7 @@
         "@types/react": "^19.3.0",
         "@vencord/discord-types": "^1.0.0",
         "@vitest/coverage-v8": "^5.0.1",
-        "eslint": "^10.9.1",
+        "eslint": "^10.11.0",
         "eslint-config-prettier": "^10.1.8",
         "prettier": "^3.9.8",
         "typescript": "^5.3.0",
