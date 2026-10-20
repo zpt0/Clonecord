@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0]
+
+- Selective clone: choose individual channels/roles (with categories) in a new selection view
+- Auto-save selections per source server; live estimated-time with green/yellow/red coloring
+- Checkpoint versioning: stale/incompatible checkpoints are safely ignored
+- Improved selection UI: hover highlights, category separators, back/select buttons, search
+- Animated asset support and soundboard emoji mapping (carried over)
+
 ## [1.2.4]
 
 - Add optional "clone all custom emojis" toggle (shown only on slot overflow) with rate-limit warning

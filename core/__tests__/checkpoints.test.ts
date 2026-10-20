@@ -6,6 +6,7 @@ import {
     clearCheckpoint,
     emptyProgress,
     CloneCheckpoint,
+    CHECKPOINT_VERSION,
 } from "../checkpoints";
 
 const store = new Map<string, unknown>();
@@ -26,6 +27,7 @@ vi.mock("@api/index", () => ({
 
 function makeCheckpoint(overrides: Partial<CloneCheckpoint> = {}): CloneCheckpoint {
     return {
+        version: CHECKPOINT_VERSION,
         runId: newRunId("source-1"),
         sourceGuildId: "source-1",
         sourceGuildName: "Source",
