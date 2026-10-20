@@ -316,7 +316,10 @@ export async function cloneSoundboard(ctx: CloneContext): Promise<number> {
                     volume: sound.volume ?? 1,
                 };
 
-                if (sound.emoji_name && !sound.emoji_id) {
+                if (sound.emoji_id && state.emojiIdMap[sound.emoji_id]) {
+                    body.emoji_id = state.emojiIdMap[sound.emoji_id];
+                    if (sound.emoji_name) body.emoji_name = sound.emoji_name;
+                } else if (sound.emoji_name) {
                     body.emoji_name = sound.emoji_name;
                 }
 

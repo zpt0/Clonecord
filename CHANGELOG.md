@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.4]
+
+- Add optional "clone all custom emojis" toggle (shown only on slot overflow) with rate-limit warning
+- Clone soundboard emoji references via emoji ID mapping
+- Support animated server icons, banners, splashes, and role icons (a_ prefix)
+- Enforce emoji slot limits and report emoji gaps
+
 ## [1.2.3]
 
 - Autolink bare URLs in update-modal release notes (trailing sentence punctuation excluded) and open release links in the external browser

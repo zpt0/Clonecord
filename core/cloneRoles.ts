@@ -1,7 +1,7 @@
 import { RestAPI, GuildStore } from "@webpack/common";
 import { replaceEmojis, arrayBufferToBase64 } from "../utils/helpers";
 import { checkGuildExistence } from "../utils/api";
-import { updateWithTime } from "../utils/notifications";
+import { updateWithTime, notify } from "../utils/notifications";
 import { state } from "../store";
 import { handleCloneError } from "../utils/errorHandler";
 import { CloneContext } from "./types";
@@ -62,6 +62,20 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
         }
     }
 
+    if (options.cloneSoundboard) {
+        try {
+            const soundboardResp = await RestAPI.get({
+                url: `/guilds/${sourceGuild.id}/soundboard-sounds`,
+            });
+            const sounds = (soundboardResp as any).body?.items || (soundboardResp as any).body || [];
+            for (const sound of sounds) {
+                if (sound.emoji_id) customEmojiIds.add(sound.emoji_id);
+            }
+        } catch (e) {
+            console.warn("[Clonecord] Failed to fetch soundboard data for emoji extraction:", e);
+        }
+    }
+
     if (options.cloneOnboarding) {
         try {
             const onboardingResp = await RestAPI.get({
@@ -84,24 +98,65 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
         }
     }
 
-    if (customEmojiIds.size > 0) {
-        updateWithTime(`Cloning ${customEmojiIds.size} used emojis...`, 20);
+    const cloneAllEmojis = options.cloneEmojis === true;
+
+    if (cloneAllEmojis || customEmojiIds.size > 0) {
+        updateWithTime(
+            cloneAllEmojis
+                ? `Cloning custom emojis...`
+                : `Cloning ${customEmojiIds.size} used emojis...`,
+            20
+        );
 
         try {
             const sourceEmojisResp = await RestAPI.get({ url: `/guilds/${sourceGuild.id}/emojis` });
-            const sourceEmojis = (sourceEmojisResp as any).body || [];
-            const emojisToClone = sourceEmojis.filter((e: any) => customEmojiIds.has(e.id));
+            const sourceEmojis: any[] = (sourceEmojisResp as any).body || [];
+
+            let emojisToClone: any[] = cloneAllEmojis
+                ? [...sourceEmojis]
+                : sourceEmojis.filter((e: any) => customEmojiIds.has(e.id));
+
+            const targetTier = GuildStore.getGuild(newGuildId)
+                ? ((GuildStore.getGuild(newGuildId) as any)?.premiumTier || 0)
+                : 0;
+            const emojiSlots = [50, 100, 150, 250][targetTier] ?? 50;
 
             let targetEmojis: any[] = [];
-            if (options.resumeMode && newGuildId) {
-                try {
-                    const targetEmojisResp = await RestAPI.get({
-                        url: `/guilds/${newGuildId}/emojis`,
-                    });
-                    targetEmojis = (targetEmojisResp as any).body || [];
-                } catch (e) {
-                    console.warn("[Clonecord] Failed to fetch target emojis for resume:", e);
+            try {
+                const targetEmojisResp = await RestAPI.get({ url: `/guilds/${newGuildId}/emojis` });
+                targetEmojis = (targetEmojisResp as any).body || [];
+            } catch (e) {
+                console.warn("[Clonecord] Failed to fetch target emojis:", e);
+            }
+
+            const existingByName = new Map(targetEmojis.map((e: any) => [e.name, e]));
+            const filteredEmojis: any[] = [];
+            for (const emoji of emojisToClone) {
+                const existing = existingByName.get(emoji.name);
+                if (existing) {
+                    state.emojiIdMap[emoji.id] = existing.id;
+                } else {
+                    filteredEmojis.push(emoji);
                 }
+            }
+            emojisToClone = filteredEmojis;
+
+            const availableSlots = Math.max(0, emojiSlots - targetEmojis.length);
+            const skipped = Math.max(0, emojisToClone.length - availableSlots);
+            emojisToClone = emojisToClone.slice(0, availableSlots);
+
+            if (skipped > 0) {
+                notify(
+                    "Emoji Limit",
+                    `Target server (Tier ${targetTier}) has ${availableSlots} free emoji slots. ${skipped} emoji(s) will be skipped.`,
+                    "info",
+                    8000
+                );
+            }
+
+            if (emojisToClone.length === 0) {
+                updateWithTime("No emojis to clone (slots full or all exist).", 25);
+                return { emojisCloned, emojisFailed };
             }
 
             let emojiStep = 0;
@@ -277,11 +332,13 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
                 const roleIcon = (role as any).icon;
                 if (roleIcon) {
                     try {
-                        const iconUrl = `https://cdn.discordapp.com/role-icons/${role.id}/${roleIcon}.png?size=128`;
+                        const iconExt = String(roleIcon).startsWith("a_") ? "gif" : "png";
+const iconMime = iconExt === "gif" ? "image/gif" : "image/png";
+const iconUrl = `https://cdn.discordapp.com/role-icons/${role.id}/${roleIcon}.${iconExt}?size=128`;
                         const iconResp = await fetch(iconUrl);
                         if (iconResp.ok) {
                             const iconBuf = await iconResp.arrayBuffer();
-                            rolePayload.icon = `data:image/png;base64,${arrayBufferToBase64(iconBuf)}`;
+                            rolePayload.icon = `data:${iconMime};base64,${arrayBufferToBase64(iconBuf)}`;
                         }
                     } catch (e) {
                         console.warn("[Clonecord] Failed to fetch role icon:", e);

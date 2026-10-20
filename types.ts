@@ -7,6 +7,7 @@ export interface CloneOptions {
     targetGuildId: string | null;
     cloneStickers?: boolean;
     cloneSoundboard?: boolean;
+    cloneEmojis?: boolean;
 }
 
 export interface NotificationAction {

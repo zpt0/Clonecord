@@ -71,7 +71,16 @@ export async function fetchAssetBase64(
         const response = await fetch(url);
         if (response.ok) {
             const data = await response.arrayBuffer();
-            return `data:image/png;base64,${arrayBufferToBase64(data)}`;
+            const ext = (url.split("?")[0].split(".").pop() || "png").toLowerCase();
+            const mime =
+                ext === "gif"
+                    ? "image/gif"
+                    : ext === "jpg" || ext === "jpeg"
+                      ? "image/jpeg"
+                      : ext === "webp"
+                        ? "image/webp"
+                        : "image/png";
+            return `data:${mime};base64,${arrayBufferToBase64(data)}`;
         }
     } catch {}
     return fallback;

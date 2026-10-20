@@ -10,17 +10,20 @@ export interface GapCheckInput {
     sourceTier: number;
     sourceStickerCount?: number;
     sourceSoundboardCount?: number;
+    sourceEmojiCount?: number;
     options: {
         cloneChannels: boolean;
         cloneRoles: boolean;
         cloneOnboarding: boolean;
         cloneStickers?: boolean;
         cloneSoundboard?: boolean;
+        cloneEmojis?: boolean;
     };
     stats: {
         stickersCloned: number;
         soundboardCloned: number;
         onboardingCloned: boolean;
+        emojisCloned?: number;
     };
 }
 
@@ -32,6 +35,7 @@ export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
         sourceTier,
         sourceStickerCount,
         sourceSoundboardCount,
+        sourceEmojiCount,
         options,
         stats,
     } = input;
@@ -89,6 +93,19 @@ export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
             title: "Soundboard",
             detail: "No sounds could be cloned — slots may be full.",
             howToFix: "Server Settings → Soundboard: free up slots and retry.",
+        });
+    }
+
+    if (
+        options.cloneEmojis &&
+        sourceEmojiCount &&
+        sourceEmojiCount > 0 &&
+        (stats.emojisCloned || 0) === 0
+    ) {
+        gaps.push({
+            title: "Emojis",
+            detail: "No emojis could be cloned — slots may be full.",
+            howToFix: "Server Settings → Emojis: free up slots and retry.",
         });
     }
 
