@@ -206,6 +206,8 @@ export const CloneModal = ({
     const [cloneSoundboard, setCloneSoundboard] = React.useState(
         initialOptions?.cloneSoundboard ?? true
     );
+    const [cloneEmojis, setCloneEmojis] = React.useState(initialOptions?.cloneEmojis ?? false);
+    const [sourceEmojisCount, setSourceEmojisCount] = React.useState(0);
     const [resumeMode, setResumeMode] = React.useState(initialOptions?.resumeMode ?? false);
     const [targetGuildId, setTargetGuildId] = React.useState<string | null>(null);
     const [sourceStickersCount, setSourceStickersCount] = React.useState(0);
@@ -227,6 +229,13 @@ export const CloneModal = ({
                 setSourceSoundsCount(list.length);
             })
             .catch(() => {});
+
+        RestAPI.get({ url: `/guilds/${guild.id}/emojis` })
+            .then((resp: any) => {
+                const list = resp.body || [];
+                setSourceEmojisCount(list.length);
+            })
+            .catch(() => {});
     }, [guild.id]);
 
     React.useEffect(() => {
@@ -244,6 +253,12 @@ export const CloneModal = ({
     }, [targetGuildId]);
 
     const canOnboarding = cloneChannels && cloneRoles;
+
+    const targetTierForEmojis = targetGuildId
+        ? (GuildStore.getGuild(targetGuildId) as any)?.premiumTier || 0
+        : 0;
+    const emojiSlots = [50, 100, 150, 250][targetTierForEmojis] ?? 50;
+    const showEmojiToggle = sourceEmojisCount > emojiSlots;
 
     React.useEffect(() => {
         if (!canOnboarding) setCloneOnboarding(false);
@@ -275,6 +290,7 @@ export const CloneModal = ({
         const onboardingEst = cloneOnboarding ? 2 : 0;
         const stickerEst = cloneStickers ? sourceStickersCount : 0;
         const soundboardEst = cloneSoundboard ? sourceSoundsCount : 0;
+        const emojiEst = cloneEmojis ? sourceEmojisCount : 0;
 
         const perItemDelay = 1.5;
         const setupTime = 5;
@@ -286,7 +302,7 @@ export const CloneModal = ({
         const totalSeconds =
             setupTime +
             deleteTime +
-            (roleCount + channelCount + onboardingEst + stickerEst + soundboardEst) * perItemDelay;
+            (roleCount + channelCount + onboardingEst + stickerEst + soundboardEst + emojiEst) * perItemDelay;
 
         if (totalSeconds < 60) return `~${Math.ceil(totalSeconds)}s`;
         const mins = Math.floor(totalSeconds / 60);
@@ -299,8 +315,10 @@ export const CloneModal = ({
         cloneOnboarding,
         cloneStickers,
         cloneSoundboard,
+        cloneEmojis,
         sourceStickersCount,
         sourceSoundsCount,
+        sourceEmojisCount,
         targetGuildId,
         resumeMode,
     ]);
@@ -337,6 +355,7 @@ export const CloneModal = ({
                             cloneSystemFlags,
                             cloneStickers,
                             cloneSoundboard,
+                            cloneEmojis,
                             resumeMode: false,
                             targetGuildId,
                         })
@@ -351,6 +370,7 @@ export const CloneModal = ({
                 cloneSystemFlags,
                 cloneStickers,
                 cloneSoundboard,
+                cloneEmojis,
                 resumeMode,
                 targetGuildId,
             });
@@ -366,6 +386,7 @@ export const CloneModal = ({
         cloneSystemFlags,
         cloneStickers,
         cloneSoundboard,
+        cloneEmojis,
         guild.name,
         ownedGuilds,
         onClone,
@@ -667,6 +688,34 @@ export const CloneModal = ({
                         sourceStickersCount={sourceStickersCount}
                         sourceSoundsCount={sourceSoundsCount}
                     />
+
+                    {showEmojiToggle && (
+                        <div
+                            style={{
+                                background: "rgba(88,101,242,0.06)",
+                                border: "1px solid rgba(88,101,242,0.22)",
+                                padding: "12px",
+                                borderRadius: "8px",
+                            }}
+                        >
+                            <Checkbox
+                                value={cloneEmojis}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneEmojis(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Alle Custom-Emojis klonen ({sourceEmojisCount})
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    Standardmäßig nur verwendete Emojis. Kann länger dauern und
+                                    Rate-Limits auslösen.
+                                </span>
+                            </Checkbox>
+                        </div>
+                    )}
                 </div>
             </ModalContent>
 

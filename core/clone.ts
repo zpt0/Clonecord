@@ -191,18 +191,27 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         updateWithTime("Downloading assets...", 1);
 
+        const iconHash = (sourceGuild as any).icon;
+        const bannerHash = (sourceGuild as any).banner;
+        const splashHash = (sourceGuild as any).splash;
+        const iconExt = iconHash?.startsWith("a_") ? "gif" : "png";
+        const bannerExt = bannerHash?.startsWith("a_") ? "gif" : "png";
+        const splashExt = splashHash?.startsWith("a_") ? "gif" : "png";
+
         const [iconData, bannerData, splashData] = await Promise.all([
-            fetchAssetBase64(
-                `https://cdn.discordapp.com/icons/${sourceGuild.id}/${sourceGuild.icon}.png?size=512`
-            ),
-            (sourceGuild as any).banner
+            iconHash
                 ? fetchAssetBase64(
-                      `https://cdn.discordapp.com/banners/${sourceGuild.id}/${(sourceGuild as any).banner}.png?size=512`
+                      `https://cdn.discordapp.com/icons/${sourceGuild.id}/${iconHash}.${iconExt}?size=512`
                   )
                 : Promise.resolve(null),
-            (sourceGuild as any).splash
+            bannerHash
                 ? fetchAssetBase64(
-                      `https://cdn.discordapp.com/splashes/${sourceGuild.id}/${(sourceGuild as any).splash}.png?size=512`
+                      `https://cdn.discordapp.com/banners/${sourceGuild.id}/${bannerHash}.${bannerExt}?size=512`
+                  )
+                : Promise.resolve(null),
+            splashHash
+                ? fetchAssetBase64(
+                      `https://cdn.discordapp.com/splashes/${sourceGuild.id}/${splashHash}.${splashExt}?size=512`
                   )
                 : Promise.resolve(null),
         ]);
@@ -345,6 +354,13 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         throwIfCancelled();
 
         let emojisCloned = 0;
+        let sourceEmojiCount = 0;
+        if (options.cloneEmojis) {
+            try {
+                const emojiResp = await RestAPI.get({ url: `/guilds/${sourceGuild.id}/emojis` });
+                sourceEmojiCount = ((emojiResp as any).body || []).length;
+            } catch {}
+        }
         if (options.cloneChannels || options.cloneRoles || options.cloneOnboarding) {
             const emojiResult = await extractAndCloneEmojis(ctx);
             emojisCloned = emojiResult.emojisCloned;
@@ -492,12 +508,15 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     cloneOnboarding: options.cloneOnboarding,
                     cloneStickers: options.cloneStickers,
                     cloneSoundboard: options.cloneSoundboard,
+                    cloneEmojis: options.cloneEmojis,
                 },
                 stats: {
                     stickersCloned,
                     soundboardCloned,
                     onboardingCloned,
+                    emojisCloned,
                 },
+                sourceEmojiCount,
             });
             showCloneSummary(state.cloneStats, state.failedItems, gaps);
         } catch {
