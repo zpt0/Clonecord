@@ -777,3 +777,167 @@
     background: rgba(250, 166, 26, 0.12);
     color: #b5851a;
 }
+
+/* ─── Select View ─────────────────────────────────────────── */
+.cc-select-view {
+    color: var(--text-normal, #dbdee1);
+    font-family: var(--font-primary), "gg sans", "Noto Sans", sans-serif;
+}
+
+.cc-select-view input[type="text"] {
+    font-family: var(--font-primary), "gg sans", "Noto Sans", sans-serif;
+    color: var(--text-normal, #dbdee1);
+}
+
+.cc-select-view label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.cc-select-view label {
+    position: relative;
+    transition: background 0.12s ease;
+}
+
+.cc-select-view label:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+}
+
+.cc-select-view label:hover::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--interactive-active, #5865f2);
+}
+
+.cc-select-view label:has(input:checked) {
+    background: rgba(88, 101, 242, 0.12);
+}
+
+.cc-select-view label:has(input:checked):hover {
+    background: rgba(88, 101, 242, 0.18);
+}
+
+.cc-select-view label span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.cc-select-view button {
+    font-family: var(--font-primary), "gg sans", "Noto Sans", sans-serif;
+}
+
+.cc-select-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.1));
+    background: var(--background-secondary, #2b2d31);
+    color: var(--text-normal, #dbdee1);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.cc-select-back-btn:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+}
+
+.cc-select-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #5865f2;
+    background: #5865f2;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        filter 0.15s ease,
+        transform 0.15s ease;
+}
+
+.cc-select-toggle:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+}
+
+.cc-select-toolbar-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.1));
+    background: var(--background-secondary, #2b2d31);
+    color: var(--text-normal, #dbdee1);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.cc-select-toolbar-btn:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+}
+
+.cc-select-search {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.1));
+    background: var(--background-secondary, #2b2d31);
+    color: var(--text-normal, #dbdee1);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.cc-select-search:focus {
+    border-color: #5865f2;
+}
+
+.cc-select-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted, #949ba4);
+    margin-top: 10px;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+}
+
+.cc-select-counter {
+    font-size: 12px;
+    color: var(--text-muted, #949ba4);
+    margin-left: auto;
+}
+
+.cc-select-empty {
+    font-size: 12px;
+    color: var(--text-muted, #949ba4);
+    padding: 8px 0;
+    font-style: italic;
+}
+
+.cc-select-saved {
+    font-size: 11px;
+    color: var(--text-positive, #43b581);
+    margin-top: 4px;
+}

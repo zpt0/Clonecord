@@ -33,11 +33,16 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
 
     const allChannels = estimateChannels;
 
+    const selectedChannelSet = Array.isArray(options.selectedChannelIds)
+        ? new Set(options.selectedChannelIds)
+        : null;
+    const isSelectedChannel = (c: any) => !selectedChannelSet || selectedChannelSet.has(c.id);
+
     const categories = allChannels
-        .filter((c: any) => c.type === 4)
+        .filter((c: any) => c.type === 4 && isSelectedChannel(c))
         .sort((a: any, b: any) => a.position - b.position);
     const otherChannels = allChannels
-        .filter((c: any) => c.type !== 4)
+        .filter((c: any) => c.type !== 4 && isSelectedChannel(c))
         .sort((a: any, b: any) => a.position - b.position);
 
     let existingTargetChannels: any[] = [];

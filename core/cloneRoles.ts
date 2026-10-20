@@ -26,6 +26,12 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
         newGuildId,
         taskQueue,
     } = ctx;
+    const selectedChannelSet = Array.isArray(options.selectedChannelIds)
+        ? new Set(options.selectedChannelIds)
+        : null;
+    const selectedRoleSet = Array.isArray(options.selectedRoleIds)
+        ? new Set(options.selectedRoleIds)
+        : null;
     const customEmojiIds = new Set<string>();
     let emojisCloned = 0;
     let emojisFailed = 0;
@@ -42,12 +48,14 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
 
     if (options.cloneRoles) {
         for (const role of estimateRoles) {
+            if (selectedRoleSet && !selectedRoleSet.has(role.id)) continue;
             addEmojisFromText(role.name);
         }
     }
 
     if (options.cloneChannels) {
         for (const ch of estimateChannels) {
+            if (selectedChannelSet && !selectedChannelSet.has(ch.id)) continue;
             addEmojisFromText(ch.name);
             addEmojisFromText(ch.topic);
             if (ch.available_tags) {
@@ -67,7 +75,8 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
             const soundboardResp = await RestAPI.get({
                 url: `/guilds/${sourceGuild.id}/soundboard-sounds`,
             });
-            const sounds = (soundboardResp as any).body?.items || (soundboardResp as any).body || [];
+            const sounds =
+                (soundboardResp as any).body?.items || (soundboardResp as any).body || [];
             for (const sound of sounds) {
                 if (sound.emoji_id) customEmojiIds.add(sound.emoji_id);
             }
@@ -117,7 +126,7 @@ export async function extractAndCloneEmojis(ctx: CloneContext): Promise<CloneEmo
                 : sourceEmojis.filter((e: any) => customEmojiIds.has(e.id));
 
             const targetTier = GuildStore.getGuild(newGuildId)
-                ? ((GuildStore.getGuild(newGuildId) as any)?.premiumTier || 0)
+                ? (GuildStore.getGuild(newGuildId) as any)?.premiumTier || 0
                 : 0;
             const emojiSlots = [50, 100, 150, 250][targetTier] ?? 50;
 
@@ -260,8 +269,13 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
         };
     }
 
+    const selectedRoleSet = Array.isArray(options.selectedRoleIds)
+        ? new Set(options.selectedRoleIds)
+        : null;
+    const isSelectedRole = (r: any) => !selectedRoleSet || selectedRoleSet.has(r.id);
+
     const sortedRoles = estimateRoles
-        .filter((r) => r.name !== "@everyone")
+        .filter((r) => r.name !== "@everyone" && isSelectedRole(r))
         .sort((a: any, b: any) => b.position - a.position);
     const everyoneRole = estimateRoles.find((r: any) => r.name === "@everyone");
 
@@ -333,8 +347,8 @@ export async function cloneRoles(ctx: CloneContext): Promise<CloneRolesResult> {
                 if (roleIcon) {
                     try {
                         const iconExt = String(roleIcon).startsWith("a_") ? "gif" : "png";
-const iconMime = iconExt === "gif" ? "image/gif" : "image/png";
-const iconUrl = `https://cdn.discordapp.com/role-icons/${role.id}/${roleIcon}.${iconExt}?size=128`;
+                        const iconMime = iconExt === "gif" ? "image/gif" : "image/png";
+                        const iconUrl = `https://cdn.discordapp.com/role-icons/${role.id}/${roleIcon}.${iconExt}?size=128`;
                         const iconResp = await fetch(iconUrl);
                         if (iconResp.ok) {
                             const iconBuf = await iconResp.arrayBuffer();

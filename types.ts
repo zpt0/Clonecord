@@ -8,6 +8,8 @@ export interface CloneOptions {
     cloneStickers?: boolean;
     cloneSoundboard?: boolean;
     cloneEmojis?: boolean;
+    selectedChannelIds?: string[] | null;
+    selectedRoleIds?: string[] | null;
 }
 
 export interface NotificationAction {

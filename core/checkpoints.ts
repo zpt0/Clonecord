@@ -1,6 +1,7 @@
 import { DataStore } from "@api/index";
 
 export interface CloneCheckpoint {
+    version: number;
     runId: string;
     sourceGuildId: string;
     sourceGuildName: string;
@@ -21,6 +22,7 @@ export interface CloneCheckpoint {
     completedAt: number | null;
 }
 
+export const CHECKPOINT_VERSION = 2;
 const CHECKPOINT_KEY = "Clonecord-clone-checkpoint";
 const CHECKPOINT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CHECKPOINT_MIN_AGE_MS = 60 * 1000;
@@ -47,6 +49,11 @@ export async function loadCheckpoint(): Promise<CloneCheckpoint | null> {
         if (!raw) return null;
 
         if (raw.completedAt != null) {
+            await DataStore.delete(CHECKPOINT_KEY).catch(() => {});
+            return null;
+        }
+
+        if (raw.version !== CHECKPOINT_VERSION) {
             await DataStore.delete(CHECKPOINT_KEY).catch(() => {});
             return null;
         }

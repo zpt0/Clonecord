@@ -18,6 +18,7 @@ import {
 } from "@utils/modal";
 import { Guild } from "@vencord/discord-types";
 import { CloneOptions } from "../types";
+import { DataStore } from "@api/index";
 import { extractChannels } from "../utils/api";
 import { getTheme, Theme } from "@utils/discord";
 
@@ -208,6 +209,15 @@ export const CloneModal = ({
     );
     const [cloneEmojis, setCloneEmojis] = React.useState(initialOptions?.cloneEmojis ?? false);
     const [sourceEmojisCount, setSourceEmojisCount] = React.useState(0);
+
+    const [view, setView] = React.useState<"main" | "select">("main");
+    const [selectedChannelIds, setSelectedChannelIds] = React.useState<string[] | null>(
+        initialOptions?.selectedChannelIds ?? null
+    );
+    const [selectedRoleIds, setSelectedRoleIds] = React.useState<string[] | null>(
+        initialOptions?.selectedRoleIds ?? null
+    );
+    const [selectionSearch, setSelectionSearch] = React.useState("");
     const [resumeMode, setResumeMode] = React.useState(initialOptions?.resumeMode ?? false);
     const [targetGuildId, setTargetGuildId] = React.useState<string | null>(null);
     const [sourceStickersCount, setSourceStickersCount] = React.useState(0);
@@ -252,6 +262,29 @@ export const CloneModal = ({
         }
     }, [targetGuildId]);
 
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const saved = (await DataStore.get(`Clonecord-selection-${guild.id}`)) as any;
+                if (saved) {
+                    setSelectedChannelIds(
+                        Array.isArray(saved.channelIds) ? saved.channelIds : null
+                    );
+                    setSelectedRoleIds(Array.isArray(saved.roleIds) ? saved.roleIds : null);
+                }
+            } catch {}
+        })();
+    }, [guild.id]);
+
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            DataStore.set(`Clonecord-selection-${guild.id}`, {
+                channelIds: selectedChannelIds,
+                roleIds: selectedRoleIds,
+            }).catch(() => {});
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [selectedChannelIds, selectedRoleIds, guild.id]);
     const canOnboarding = cloneChannels && cloneRoles;
 
     const targetTierForEmojis = targetGuildId
@@ -272,21 +305,33 @@ export const CloneModal = ({
         [guild.id]
     );
 
-    const nothingSelected =
-        !cloneChannels &&
-        !cloneRoles &&
-        !cloneOnboarding &&
-        !cloneSystemFlags &&
-        !cloneStickers &&
-        !cloneSoundboard;
+    const noChannelsSelected = Array.isArray(selectedChannelIds) && selectedChannelIds.length === 0;
+    const noRolesSelected = Array.isArray(selectedRoleIds) && selectedRoleIds.length === 0;
 
-    const estimatedTime = React.useMemo(() => {
+    const hasCoreWork =
+        (cloneChannels && !noChannelsSelected) ||
+        (cloneRoles && !noRolesSelected) ||
+        cloneOnboarding ||
+        cloneSystemFlags ||
+        cloneStickers ||
+        cloneSoundboard;
+    const nothingSelected = !hasCoreWork;
+
+    const estimatedSeconds = React.useMemo(() => {
+        const allRolesCount = (GuildRoleStore.getSortedRoles(guild.id) || []).filter(
+            (r: any) => r.name !== "@everyone"
+        ).length;
         const roleCount = cloneRoles
-            ? (GuildRoleStore.getSortedRoles(guild.id) || []).filter(
-                  (r: any) => r.name !== "@everyone"
-              ).length
+            ? selectedRoleIds === null
+                ? allRolesCount
+                : selectedRoleIds.length
             : 0;
-        const channelCount = cloneChannels ? extractChannels(guild.id, true).length : 0;
+        const allChannelsCount = extractChannels(guild.id, true).length;
+        const channelCount = cloneChannels
+            ? selectedChannelIds === null
+                ? allChannelsCount
+                : selectedChannelIds.length
+            : 0;
         const onboardingEst = cloneOnboarding ? 2 : 0;
         const stickerEst = cloneStickers ? sourceStickersCount : 0;
         const soundboardEst = cloneSoundboard ? sourceSoundsCount : 0;
@@ -302,12 +347,10 @@ export const CloneModal = ({
         const totalSeconds =
             setupTime +
             deleteTime +
-            (roleCount + channelCount + onboardingEst + stickerEst + soundboardEst + emojiEst) * perItemDelay;
+            (roleCount + channelCount + onboardingEst + stickerEst + soundboardEst + emojiEst) *
+                perItemDelay;
 
-        if (totalSeconds < 60) return `~${Math.ceil(totalSeconds)}s`;
-        const mins = Math.floor(totalSeconds / 60);
-        const secs = Math.ceil(totalSeconds % 60);
-        return secs > 0 ? `~${mins}m ${secs}s` : `~${mins}m`;
+        return totalSeconds;
     }, [
         guild.id,
         cloneRoles,
@@ -316,12 +359,28 @@ export const CloneModal = ({
         cloneStickers,
         cloneSoundboard,
         cloneEmojis,
+        selectedChannelIds,
+        selectedRoleIds,
         sourceStickersCount,
         sourceSoundsCount,
         sourceEmojisCount,
         targetGuildId,
         resumeMode,
     ]);
+
+    const estimatedTime = React.useMemo(() => {
+        const totalSeconds = estimatedSeconds;
+        if (totalSeconds < 60) return `~${Math.ceil(totalSeconds)}s`;
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = Math.ceil(totalSeconds % 60);
+        return secs > 0 ? `~${mins}m ${secs}s` : `~${mins}m`;
+    }, [estimatedSeconds]);
+
+    const estimatedColor = React.useMemo(() => {
+        if (estimatedSeconds < 60) return "#43b581";
+        if (estimatedSeconds < 300) return "#faa61a";
+        return "#ed4245";
+    }, [estimatedSeconds]);
 
     const handleTargetChange = React.useCallback((v: string) => {
         setTargetGuildId(v === "new" ? null : v);
@@ -356,6 +415,8 @@ export const CloneModal = ({
                             cloneStickers,
                             cloneSoundboard,
                             cloneEmojis,
+                            selectedChannelIds,
+                            selectedRoleIds,
                             resumeMode: false,
                             targetGuildId,
                         })
@@ -371,6 +432,8 @@ export const CloneModal = ({
                 cloneStickers,
                 cloneSoundboard,
                 cloneEmojis,
+                selectedChannelIds,
+                selectedRoleIds,
                 resumeMode,
                 targetGuildId,
             });
@@ -387,11 +450,90 @@ export const CloneModal = ({
         cloneStickers,
         cloneSoundboard,
         cloneEmojis,
+        selectedChannelIds,
+        selectedRoleIds,
         guild.name,
         ownedGuilds,
         onClone,
         props,
     ]);
+
+    const allChannels = React.useMemo(() => extractChannels(guild.id, true), [guild.id]);
+    const allRoles = React.useMemo(
+        () =>
+            (GuildRoleStore.getSortedRoles(guild.id) || []).filter(
+                (r: any) => r.name !== "@everyone"
+            ),
+        [guild.id]
+    );
+
+    const isChannelSelected = React.useCallback(
+        (id: string) => selectedChannelIds === null || selectedChannelIds.includes(id),
+        [selectedChannelIds]
+    );
+    const isRoleSelected = React.useCallback(
+        (id: string) => selectedRoleIds === null || selectedRoleIds.includes(id),
+        [selectedRoleIds]
+    );
+
+    const toggleChannel = React.useCallback(
+        (id: string) => {
+            setSelectedChannelIds((prev) => {
+                const baseIds = allChannels.map((c: any) => c.id);
+                const current = prev === null ? [...baseIds] : [...prev];
+                if (current.includes(id)) {
+                    return current.filter((x) => x !== id);
+                }
+                return [...current, id];
+            });
+        },
+        [allChannels]
+    );
+
+    const toggleCategory = React.useCallback(
+        (cat: any) => {
+            const childIds = allChannels
+                .filter((c: any) => c.parent_id === cat.id)
+                .map((c: any) => c.id);
+            setSelectedChannelIds((prev) => {
+                const baseIds = allChannels.map((c: any) => c.id);
+                const current = prev === null ? [...baseIds] : [...prev];
+                const isSelected = current.includes(cat.id);
+                if (isSelected) {
+                    return current.filter((id) => id !== cat.id && !childIds.includes(id));
+                }
+                const next = new Set(current);
+                next.add(cat.id);
+                childIds.forEach((id) => next.add(id));
+                return [...next];
+            });
+        },
+        [allChannels]
+    );
+
+    const toggleRole = React.useCallback(
+        (id: string) => {
+            setSelectedRoleIds((prev) => {
+                const baseIds = allRoles.map((r: any) => r.id);
+                const current = prev === null ? [...baseIds] : [...prev];
+                if (current.includes(id)) {
+                    return current.filter((x) => x !== id);
+                }
+                return [...current, id];
+            });
+        },
+        [allRoles]
+    );
+
+    const selectionButtonStyle = {
+        padding: "6px 10px",
+        borderRadius: "8px",
+        border: "1px solid var(--background-modifier-accent)",
+        background: "var(--background-secondary)",
+        color: "var(--text-normal)",
+        cursor: "pointer",
+        fontSize: "12px",
+    };
 
     const selectOptions = React.useMemo(
         () => [
@@ -434,289 +576,529 @@ export const CloneModal = ({
     return (
         <ModalRoot {...props} className={themeClass}>
             <ModalHeader>
-                <div className="cc-modal-guild-header">
-                    {guildIconUrl ? (
-                        <img
-                            src={guildIconUrl}
-                            alt=""
-                            className="cc-modal-guild-icon"
-                            width={40}
-                            height={40}
-                        />
-                    ) : (
-                        <div className="cc-modal-guild-icon cc-modal-guild-icon-placeholder">
-                            {guild.name.charAt(0).toUpperCase()}
-                        </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
+                    {view === "select" && (
+                        <button
+                            onClick={() => setView("main")}
+                            className="cc-select-back-btn"
+                            title="Back"
+                        >
+                            ← Back
+                        </button>
                     )}
-                    <div className="cc-modal-guild-info">
-                        <span className="cc-modal-title">Clone Server: {guild.name}</span>
-                        <div className="cc-modal-stats-row">
-                            <span className="cc-modal-stat-badge">
-                                # {sourceChannelCount} channels
-                            </span>
-                            <span className="cc-modal-stat-badge">@ {sourceRoleCount} roles</span>
+                    {view === "main" ? (
+                        <div className="cc-modal-guild-header" style={{ flex: 1 }}>
+                            {guildIconUrl ? (
+                                <img
+                                    src={guildIconUrl}
+                                    alt=""
+                                    className="cc-modal-guild-icon"
+                                    width={40}
+                                    height={40}
+                                />
+                            ) : (
+                                <div className="cc-modal-guild-icon cc-modal-guild-icon-placeholder">
+                                    {guild.name.charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                            <div className="cc-modal-guild-info">
+                                <span className="cc-modal-title">Clone Server: {guild.name}</span>
+                                <div className="cc-modal-stats-row">
+                                    <span className="cc-modal-stat-badge">
+                                        # {sourceChannelCount} channels
+                                    </span>
+                                    <span className="cc-modal-stat-badge">
+                                        @ {sourceRoleCount} roles
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <span className="cc-modal-title" style={{ flex: 1 }}>
+                            Select Channels &amp; Roles
+                        </span>
+                    )}
+                    {view === "main" && (
+                        <button
+                            onClick={() => setView("select")}
+                            className="cc-select-toggle"
+                            title="Select channels & roles to clone"
+                        >
+                            ☑ Select
+                        </button>
+                    )}
                 </div>
             </ModalHeader>
 
             <ModalContent>
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "16px",
-                        padding: "8px 0",
-                        minHeight: "450px",
-                    }}
-                >
-                    <div>
-                        <span className="cc-modal-label">Clone To:</span>
-                        <SearchableSelect
-                            options={selectOptions}
-                            value={selectValue}
-                            placeholder="Select destination..."
-                            maxVisibleItems={5}
-                            closeOnSelect={true}
-                            onChange={handleTargetChange}
+                {view === "select" ? (
+                    <div
+                        className="cc-select-view"
+                        style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "12px",
+                            padding: "8px 0",
+                            minHeight: "450px",
+                        }}
+                    >
+                        <input
+                            type="text"
+                            className="cc-select-search"
+                            placeholder="Search channels or roles..."
+                            value={selectionSearch}
+                            onChange={(e) => setSelectionSearch(e.target.value)}
                         />
-                        {targetGuildId && !resumeMode && (
-                            <div
-                                className="cc-modal-subtext"
-                                style={{
-                                    color: "var(--status-danger)",
-                                    marginTop: "6px",
-                                    fontWeight: 600,
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <button
+                                onClick={() => {
+                                    setSelectedChannelIds(null);
+                                    setSelectedRoleIds(null);
                                 }}
+                                className="cc-select-toolbar-btn"
                             >
-                                Warning: Selected items in the target server will be deleted and
-                                replaced!
-                            </div>
-                        )}
-                        {targetGuildId && resumeMode && (
-                            <div
-                                className="cc-modal-subtext"
-                                style={{
-                                    color: "var(--text-positive)",
-                                    marginTop: "6px",
-                                    fontWeight: 600,
+                                Select all
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setSelectedChannelIds([]);
+                                    setSelectedRoleIds([]);
                                 }}
+                                className="cc-select-toolbar-btn"
                             >
-                                Resume mode: Only missing items will be added, nothing will be
-                                deleted.
-                            </div>
-                        )}
-                        {targetGuildId && isOverwrite && (
-                            <div className="cc-modal-diff-badge">
-                                {channelsToCreate > 0 && (
-                                    <span className="cc-modal-diff-positive">
-                                        +{channelsToCreate} channels
-                                    </span>
-                                )}
-                                {channelsToDelete > 0 && (
-                                    <span className="cc-modal-diff-negative">
-                                        -{channelsToDelete} channels
-                                    </span>
-                                )}
-                                {rolesToCreate > 0 && (
-                                    <span className="cc-modal-diff-positive">
-                                        +{rolesToCreate} roles
-                                    </span>
-                                )}
-                                {rolesToDelete > 0 && (
-                                    <span className="cc-modal-diff-negative">
-                                        -{rolesToDelete} roles
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                        {targetGuildId && isResume && (
-                            <div className="cc-modal-diff-badge">
-                                {channelsToCreate > 0 && (
-                                    <span className="cc-modal-diff-positive">
-                                        +{channelsToCreate} channels to add
-                                    </span>
-                                )}
-                                {rolesToCreate > 0 && (
-                                    <span className="cc-modal-diff-positive">
-                                        +{rolesToCreate} roles to add
-                                    </span>
-                                )}
-                                {channelsToCreate === 0 && rolesToCreate === 0 && (
-                                    <span className="cc-modal-diff-neutral">
-                                        All items already exist
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {targetGuildId && (
-                        <div style={{ display: "flex", gap: "8px" }}>
-                            <ModeButton
-                                label="Overwrite"
-                                active={!resumeMode}
-                                color="#5865f2"
-                                onClick={() => setResumeMode(false)}
-                            />
-                            <ModeButton
-                                label="Resume"
-                                active={resumeMode}
-                                color="#43b581"
-                                onClick={() => setResumeMode(true)}
-                            />
+                                Select none
+                            </button>
+                            <span className="cc-select-counter">
+                                {selectedChannelIds === null
+                                    ? allChannels.length
+                                    : selectedChannelIds.length}{" "}
+                                / {allChannels.length} channels,{" "}
+                                {selectedRoleIds === null
+                                    ? allRoles.length
+                                    : selectedRoleIds.length}{" "}
+                                / {allRoles.length} roles
+                            </span>
                         </div>
-                    )}
 
-                    <div className="cc-modal-note-box">
-                        <strong>Note:</strong> Server Icon, Name, Banner, Splash, Description
-                        {cloneSystemFlags ? ", and System Channel Flags" : ""} will always be
-                        cloned.
-                    </div>
-
-                    <div>
-                        <span className="cc-modal-label">Core:</span>
-                        <Checkbox
-                            value={cloneChannels}
-                            type="inverted"
-                            onChange={(_: any, val: boolean) => setCloneChannels(val)}
-                        >
-                            <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
-                                Channels
-                            </span>
-                            <span
-                                className="cc-modal-subtext"
-                                style={{ display: "block", marginTop: "2px" }}
-                            >
-                                All channel types with topics, positions, and settings
-                            </span>
-                        </Checkbox>
-
-                        <Checkbox
-                            value={cloneRoles}
-                            type="inverted"
-                            onChange={(_: any, val: boolean) => setCloneRoles(val)}
-                        >
-                            <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
-                                Roles
-                            </span>
-                            <span
-                                className="cc-modal-subtext"
-                                style={{ display: "block", marginTop: "2px" }}
-                            >
-                                With permissions, colors, and icons
-                            </span>
-                        </Checkbox>
-                    </div>
-
-                    <div>
-                        <span className="cc-modal-label">Assets:</span>
-                        <Checkbox
-                            value={cloneStickers}
-                            type="inverted"
-                            onChange={(_: any, val: boolean) => setCloneStickers(val)}
-                        >
-                            <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
-                                Stickers
-                            </span>
-                            <span
-                                className="cc-modal-subtext"
-                                style={{ display: "block", marginTop: "2px" }}
-                            >
-                                Custom stickers (limited by boost level)
-                            </span>
-                        </Checkbox>
-
-                        <Checkbox
-                            value={cloneSoundboard}
-                            type="inverted"
-                            onChange={(_: any, val: boolean) => setCloneSoundboard(val)}
-                        >
-                            <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
-                                Soundboard
-                            </span>
-                            <span
-                                className="cc-modal-subtext"
-                                style={{ display: "block", marginTop: "2px" }}
-                            >
-                                Custom soundboard sounds (limited by boost level)
-                            </span>
-                        </Checkbox>
-                    </div>
-
-                    <div>
-                        <span className="cc-modal-label">Server Settings:</span>
-                        <Checkbox
-                            value={cloneOnboarding}
-                            type="inverted"
-                            onChange={(_: any, val: boolean) => setCloneOnboarding(val)}
-                            disabled={!canOnboarding}
-                        >
-                            <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
-                                Onboarding
-                            </span>
-                            <span
-                                className="cc-modal-subtext"
-                                style={{ display: "block", marginTop: "2px" }}
-                            >
-                                {canOnboarding
-                                    ? "Welcome prompts, default channels, and customization"
-                                    : "Requires both Channels and Roles"}
-                            </span>
-                        </Checkbox>
-
-                        <Checkbox
-                            value={cloneSystemFlags}
-                            type="inverted"
-                            onChange={(_: any, val: boolean) => setCloneSystemFlags(val)}
-                        >
-                            <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
-                                System Channel Flags
-                            </span>
-                            <span
-                                className="cc-modal-subtext"
-                                style={{ display: "block", marginTop: "2px" }}
-                            >
-                                Join/boost notification toggles
-                            </span>
-                        </Checkbox>
-                    </div>
-
-                    <BoostWarning
-                        guild={guild}
-                        targetGuildId={targetGuildId}
-                        sourceStickersCount={sourceStickersCount}
-                        sourceSoundsCount={sourceSoundsCount}
-                    />
-
-                    {showEmojiToggle && (
+                        <div className="cc-select-section-title">Channels</div>
                         <div
                             style={{
-                                background: "rgba(88,101,242,0.06)",
-                                border: "1px solid rgba(88,101,242,0.22)",
-                                padding: "12px",
-                                borderRadius: "8px",
+                                maxHeight: "220px",
+                                overflowY: "auto",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "4px",
                             }}
                         >
+                            {(() => {
+                                const q = selectionSearch.toLowerCase();
+                                const cats = allChannels
+                                    .filter((c: any) => c.type === 4)
+                                    .sort((a: any, b: any) => a.position - b.position);
+                                const items: any[] = [];
+                                for (const cat of cats) {
+                                    const catChannels = allChannels
+                                        .filter(
+                                            (c: any) =>
+                                                c.type !== 4 &&
+                                                c.parent_id === cat.id &&
+                                                (!q || c.name.toLowerCase().includes(q))
+                                        )
+                                        .sort((a: any, b: any) => a.position - b.position);
+                                    if (
+                                        catChannels.length === 0 &&
+                                        q &&
+                                        !cat.name.toLowerCase().includes(q)
+                                    )
+                                        continue;
+                                    items.push(
+                                        <div key={cat.id} style={{ marginTop: "12px" }}>
+                                            <label
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                    padding: "4px 6px",
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontWeight: 600,
+                                                    fontSize: "12px",
+                                                    color: "var(--text-muted)",
+                                                    paddingBottom: "4px",
+                                                    borderBottom:
+                                                        "1px solid var(--background-modifier-accent)",
+                                                    marginBottom: "4px",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChannelSelected(cat.id)}
+                                                    onChange={() => toggleCategory(cat)}
+                                                />
+                                                <span>{cat.name}</span>
+                                            </label>
+                                            {catChannels.map((ch: any) => (
+                                                <label
+                                                    key={ch.id}
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "8px",
+                                                        padding: "4px 0",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChannelSelected(ch.id)}
+                                                        onChange={() => toggleChannel(ch.id)}
+                                                    />
+                                                    <span style={{ fontSize: "13px" }}>
+                                                        {ch.name}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    );
+                                }
+                                const uncategorized = allChannels
+                                    .filter(
+                                        (c: any) =>
+                                            c.type !== 4 &&
+                                            !cats.some((cat: any) => cat.id === c.parent_id) &&
+                                            (!q || c.name.toLowerCase().includes(q))
+                                    )
+                                    .sort((a: any, b: any) => a.position - b.position);
+                                if (uncategorized.length > 0) {
+                                    items.push(
+                                        <div key="uncat" style={{ marginTop: "6px" }}>
+                                            {uncategorized.map((ch: any) => (
+                                                <label
+                                                    key={ch.id}
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "8px",
+                                                        padding: "4px 0",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChannelSelected(ch.id)}
+                                                        onChange={() => toggleChannel(ch.id)}
+                                                    />
+                                                    <span style={{ fontSize: "13px" }}>
+                                                        {ch.name}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    );
+                                }
+                                return items;
+                            })()}
+                        </div>
+
+                        <div className="cc-select-section-title">Roles</div>
+                        <div
+                            style={{
+                                maxHeight: "180px",
+                                overflowY: "auto",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "4px",
+                            }}
+                        >
+                            {allRoles
+                                .filter(
+                                    (r: any) =>
+                                        !selectionSearch ||
+                                        r.name.toLowerCase().includes(selectionSearch.toLowerCase())
+                                )
+                                .map((role: any) => (
+                                    <label
+                                        key={role.id}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "8px",
+                                            padding: "4px 0",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isRoleSelected(role.id)}
+                                            onChange={() => toggleRole(role.id)}
+                                        />
+                                        <span style={{ fontSize: "13px" }}>{role.name}</span>
+                                    </label>
+                                ))}
+                        </div>
+                        <div className="cc-select-saved">Selections are saved automatically.</div>
+                    </div>
+                ) : (
+                    <div
+                        style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "16px",
+                            padding: "8px 0",
+                            minHeight: "450px",
+                        }}
+                    >
+                        <div>
+                            <span className="cc-modal-label">Clone To:</span>
+                            <SearchableSelect
+                                options={selectOptions}
+                                value={selectValue}
+                                placeholder="Select destination..."
+                                maxVisibleItems={5}
+                                closeOnSelect={true}
+                                onChange={handleTargetChange}
+                            />
+                            {targetGuildId && !resumeMode && (
+                                <div
+                                    className="cc-modal-subtext"
+                                    style={{
+                                        color: "var(--status-danger)",
+                                        marginTop: "6px",
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Warning: Selected items in the target server will be deleted and
+                                    replaced!
+                                </div>
+                            )}
+                            {targetGuildId && resumeMode && (
+                                <div
+                                    className="cc-modal-subtext"
+                                    style={{
+                                        color: "var(--text-positive)",
+                                        marginTop: "6px",
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Resume mode: Only missing items will be added, nothing will be
+                                    deleted.
+                                </div>
+                            )}
+                            {targetGuildId && isOverwrite && (
+                                <div className="cc-modal-diff-badge">
+                                    {channelsToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{channelsToCreate} channels
+                                        </span>
+                                    )}
+                                    {channelsToDelete > 0 && (
+                                        <span className="cc-modal-diff-negative">
+                                            -{channelsToDelete} channels
+                                        </span>
+                                    )}
+                                    {rolesToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{rolesToCreate} roles
+                                        </span>
+                                    )}
+                                    {rolesToDelete > 0 && (
+                                        <span className="cc-modal-diff-negative">
+                                            -{rolesToDelete} roles
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            {targetGuildId && isResume && (
+                                <div className="cc-modal-diff-badge">
+                                    {channelsToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{channelsToCreate} channels to add
+                                        </span>
+                                    )}
+                                    {rolesToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{rolesToCreate} roles to add
+                                        </span>
+                                    )}
+                                    {channelsToCreate === 0 && rolesToCreate === 0 && (
+                                        <span className="cc-modal-diff-neutral">
+                                            All items already exist
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {targetGuildId && (
+                            <div style={{ display: "flex", gap: "8px" }}>
+                                <ModeButton
+                                    label="Overwrite"
+                                    active={!resumeMode}
+                                    color="#5865f2"
+                                    onClick={() => setResumeMode(false)}
+                                />
+                                <ModeButton
+                                    label="Resume"
+                                    active={resumeMode}
+                                    color="#43b581"
+                                    onClick={() => setResumeMode(true)}
+                                />
+                            </div>
+                        )}
+
+                        <div className="cc-modal-note-box">
+                            <strong>Note:</strong> Server Icon, Name, Banner, Splash, Description
+                            {cloneSystemFlags ? ", and System Channel Flags" : ""} will always be
+                            cloned.
+                        </div>
+
+                        <div>
+                            <span className="cc-modal-label">Core:</span>
                             <Checkbox
-                                value={cloneEmojis}
+                                value={cloneChannels}
                                 type="inverted"
-                                onChange={(_: any, val: boolean) => setCloneEmojis(val)}
+                                onChange={(_: any, val: boolean) => setCloneChannels(val)}
                             >
                                 <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
-                                    Alle Custom-Emojis klonen ({sourceEmojisCount})
+                                    Channels
                                 </span>
                                 <span
                                     className="cc-modal-subtext"
                                     style={{ display: "block", marginTop: "2px" }}
                                 >
-                                    Standardmäßig nur verwendete Emojis. Kann länger dauern und
-                                    Rate-Limits auslösen.
+                                    All channel types with topics, positions, and settings
+                                </span>
+                            </Checkbox>
+
+                            <Checkbox
+                                value={cloneRoles}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneRoles(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Roles
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    With permissions, colors, and icons
                                 </span>
                             </Checkbox>
                         </div>
-                    )}
-                </div>
+
+                        <div>
+                            <span className="cc-modal-label">Assets:</span>
+                            <Checkbox
+                                value={cloneStickers}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneStickers(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Stickers
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    Custom stickers (limited by boost level)
+                                </span>
+                            </Checkbox>
+
+                            <Checkbox
+                                value={cloneSoundboard}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneSoundboard(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Soundboard
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    Custom soundboard sounds (limited by boost level)
+                                </span>
+                            </Checkbox>
+                        </div>
+
+                        <div>
+                            <span className="cc-modal-label">Server Settings:</span>
+                            <Checkbox
+                                value={cloneOnboarding}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneOnboarding(val)}
+                                disabled={!canOnboarding}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Onboarding
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    {canOnboarding
+                                        ? "Welcome prompts, default channels, and customization"
+                                        : "Requires both Channels and Roles"}
+                                </span>
+                            </Checkbox>
+
+                            <Checkbox
+                                value={cloneSystemFlags}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneSystemFlags(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    System Channel Flags
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    Join/boost notification toggles
+                                </span>
+                            </Checkbox>
+                        </div>
+
+                        <BoostWarning
+                            guild={guild}
+                            targetGuildId={targetGuildId}
+                            sourceStickersCount={sourceStickersCount}
+                            sourceSoundsCount={sourceSoundsCount}
+                        />
+
+                        {showEmojiToggle && (
+                            <div
+                                style={{
+                                    background: "rgba(88,101,242,0.06)",
+                                    border: "1px solid rgba(88,101,242,0.22)",
+                                    padding: "12px",
+                                    borderRadius: "8px",
+                                }}
+                            >
+                                <Checkbox
+                                    value={cloneEmojis}
+                                    type="inverted"
+                                    onChange={(_: any, val: boolean) => setCloneEmojis(val)}
+                                >
+                                    <span
+                                        className="cc-modal-title-bold"
+                                        style={{ fontWeight: 500 }}
+                                    >
+                                        Alle Custom-Emojis klonen ({sourceEmojisCount})
+                                    </span>
+                                    <span
+                                        className="cc-modal-subtext"
+                                        style={{ display: "block", marginTop: "2px" }}
+                                    >
+                                        Standardmäßig nur verwendete Emojis. Kann länger dauern und
+                                        Rate-Limits auslösen.
+                                    </span>
+                                </Checkbox>
+                            </div>
+                        )}
+                    </div>
+                )}
             </ModalContent>
 
             <ModalFooter>
@@ -724,7 +1106,7 @@ export const CloneModal = ({
                     style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}
                 >
                     {!nothingSelected && (
-                        <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                        <div style={{ fontSize: "12px", color: estimatedColor, fontWeight: 600 }}>
                             Estimated time: {estimatedTime}
                         </div>
                     )}

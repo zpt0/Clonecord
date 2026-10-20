@@ -31,6 +31,7 @@ import {
     clearCheckpoint,
     emptyProgress,
     CloneCheckpoint,
+    CHECKPOINT_VERSION,
 } from "./checkpoints";
 
 const AuthStore = findByPropsLazy("getToken");
@@ -129,6 +130,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
     const runId = newRunId(sourceGuild.id);
     const checkpointBase = {
+        version: CHECKPOINT_VERSION,
         runId,
         sourceGuildId: sourceGuild.id,
         sourceGuildName: sourceGuild.name,

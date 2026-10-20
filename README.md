@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/github/v/release/zpt0/Clonecord?style=flat-square&logo=github" alt="Release"/>
   </a>
   <a href="https://github.com/zpt0/Clonecord/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/zpt0/Clonecord?style=flat-square" alt="License"/>
+    <img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square" alt="License: AGPL-3.0"/>
   </a>
   <a href="https://discord.gg/MKU8zvHBBJ">
     <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"/>
