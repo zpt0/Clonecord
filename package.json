@@ -31,13 +31,13 @@
         "@eslint/js": "^10.0.1",
         "@types/node": "^26.6.5",
         "@types/react": "^19.3.0",
-        "@vencord/discord-types": "^1.0.0",
-        "@vitest/coverage-v8": "^5.0.3",
-        "eslint": "^10.12.0",
+        "@vencord/discord-types": "^1.0.2",
+        "@vitest/coverage-v8": "^5.0.5",
+        "eslint": "^10.13.0",
         "eslint-config-prettier": "^10.1.8",
-        "prettier": "^3.9.8",
-        "typescript": "^5.3.0",
-        "typescript-eslint": "^8.70.0",
+        "prettier": "^3.9.10",
+        "typescript": "^7.0.2",
+        "typescript-eslint": "^8.72.0",
         "vitest": "^5.0.1"
     }
 }
