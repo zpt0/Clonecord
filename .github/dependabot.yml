@@ -9,12 +9,45 @@ updates:
           - "dependencies"
       assignees:
           - "zpt0"
+      # Never open more than one version-update PR: every dependency of this
+      # ecosystem is bundled into the single "all-dependencies" group below.
       open-pull-requests-limit: 1
       groups:
           all-dependencies:
+              applies-to: version-updates
               update-types:
                   - "major"
                   - "minor"
                   - "patch"
+              patterns:
+                  - "*"
+          all-security-updates:
+              applies-to: security-updates
+              patterns:
+                  - "*"
+      ignore:
+          # 1.0.2 pins its peer to @types/react 19.1.0 exactly, which conflicts
+          # with the root's ^19.3.0 and breaks `npm ci`.
+          - dependency-name: "@vencord/discord-types"
+            versions:
+                - "1.0.2"
+          # typescript-eslint's peer range is `typescript >=4.8.4 <6.1.0`, so a
+          # TypeScript 7 major bump would only produce a red CI run.
+          - dependency-name: "typescript"
+            update-types:
+                - "version-update:semver-major"
+
+    - package-ecosystem: "github-actions"
+      directory: "/"
+      schedule:
+          interval: "weekly"
+          day: "monday"
+      labels:
+          - "dependencies"
+      assignees:
+          - "zpt0"
+      open-pull-requests-limit: 1
+      groups:
+          all-actions:
               patterns:
                   - "*"
