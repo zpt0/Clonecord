@@ -7,7 +7,8 @@ import {
     ModalContent,
     ModalFooter,
 } from "@utils/modal";
-import { Button, ChannelStore, NavigationRouter, InviteActions } from "@webpack/common";
+import { Button } from "@components/Button";
+import { ChannelStore, NavigationRouter, InviteActions } from "@webpack/common";
 import { openInviteModal } from "@utils/discord";
 import {
     GITHUB_RELEASE_URL,
@@ -328,20 +329,20 @@ function UpdateModalInner({
                     }}
                 >
                     <Button
-                        color={Button.Colors.PRIMARY}
+                        variant="secondary"
                         onClick={handleDismiss}
                         style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.1)" }}
                     >
                         <span style={whiteText}>Not Now</span>
                     </Button>
                     <Button
-                        color={Button.Colors.PRIMARY}
+                        variant="secondary"
                         onClick={handleDiscord}
                         style={{ flex: 1, backgroundColor: "rgba(88,101,242,0.3)" }}
                     >
                         <span style={whiteText}>💬 Discord</span>
                     </Button>
-                    <Button color={Button.Colors.GREEN} onClick={handleUpdate} style={{ flex: 1 }}>
+                    <Button variant="positive" onClick={handleUpdate} style={{ flex: 1 }}>
                         <span style={whiteText}>Update Now</span>
                     </Button>
                 </div>

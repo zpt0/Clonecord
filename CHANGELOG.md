@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1]
+
+- Fix the build against Vencord 1.15.14: the deprecated `Button` export was removed from `@webpack/common`
+- Buttons now come from `@components/Button`, using `variant` instead of `color`/`Button.Colors`
+- No functional changes: cloning, checkpoints and the update modals are unchanged from 1.3.0
+
 ## [1.3.0]
 
 - Selective clone: choose individual channels/roles (with categories) in a new selection view

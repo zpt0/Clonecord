@@ -1,3 +1,4 @@
+import { Button } from "@components/Button";
 import {
     React,
     GuildStore,
@@ -5,7 +6,6 @@ import {
     UserStore,
     SearchableSelect,
     Checkbox,
-    Button,
     RestAPI,
 } from "@webpack/common";
 import {
@@ -61,11 +61,11 @@ function ConfirmOverwriteModal({
             </ModalContent>
             <ModalFooter>
                 <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                    <Button color={Button.Colors.PRIMARY} onClick={props.onClose}>
+                    <Button variant="secondary" onClick={props.onClose}>
                         Cancel
                     </Button>
                     <Button
-                        color={Button.Colors.RED}
+                        variant="dangerPrimary"
                         onClick={() => {
                             onConfirm();
                             props.onClose();
@@ -1111,11 +1111,11 @@ export const CloneModal = ({
                         </div>
                     )}
                     <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                        <Button color={Button.Colors.PRIMARY} onClick={props.onClose}>
+                        <Button variant="secondary" onClick={props.onClose}>
                             Cancel
                         </Button>
                         <Button
-                            color={Button.Colors.BRAND}
+                            variant="primary"
                             onClick={handleClone}
                             disabled={nothingSelected}
                         >
