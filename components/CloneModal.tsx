@@ -1114,11 +1114,7 @@ export const CloneModal = ({
                         <Button variant="secondary" onClick={props.onClose}>
                             Cancel
                         </Button>
-                        <Button
-                            variant="primary"
-                            onClick={handleClone}
-                            disabled={nothingSelected}
-                        >
+                        <Button variant="primary" onClick={handleClone} disabled={nothingSelected}>
                             Clone Server
                         </Button>
                     </div>
