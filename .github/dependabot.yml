@@ -25,11 +25,10 @@ updates:
     assignees:
       - "zpt0"
     ignore:
-      # 1.0.2 pins its peer to @types/react 19.1.0 exactly, which conflicts
-      # with the root's ^19.3.0 and breaks `npm ci`.
+      # Newer @vencord/discord-types versions pin an exact @types/react peer
+      # (e.g. 19.2.3), which conflicts with the root's ^19.3.0 and breaks
+      # `npm ci`. Re-enable once upstream accepts the current @types/react.
       - dependency-name: "@vencord/discord-types"
-        versions:
-          - "1.0.2"
       # typescript-eslint's peer range is `typescript >=4.8.4 <6.1.0`, so a
       # TypeScript 7 major bump would only produce a red CI run.
       - dependency-name: "typescript"
