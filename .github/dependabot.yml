@@ -1,3 +1,6 @@
+# Dependabot: bundle every update into as few pull requests as possible.
+# GitHub tracks version and security updates separately, so each ecosystem gets
+# one "all-*" group per update type and the open-PR limit is capped at 1.
 version: 2
 updates:
     - package-ecosystem: "npm"
@@ -5,32 +8,27 @@ updates:
       schedule:
           interval: "weekly"
           day: "monday"
+      open-pull-requests-limit: 1
+      commit-message:
+          prefix: "chore(deps)"
       labels:
           - "dependencies"
-      assignees:
-          - "zpt0"
-      # Never open more than one version-update PR: every dependency of this
-      # ecosystem is bundled into the single "all-dependencies" group below.
-      open-pull-requests-limit: 1
       groups:
           all-dependencies:
               applies-to: version-updates
-              update-types:
-                  - "major"
-                  - "minor"
-                  - "patch"
               patterns:
                   - "*"
           all-security-updates:
               applies-to: security-updates
               patterns:
                   - "*"
+      assignees:
+          - "zpt0"
       ignore:
-          # 1.0.2 pins its peer to @types/react 19.1.0 exactly, which conflicts
-          # with the root's ^19.3.0 and breaks `npm ci`.
+          # Newer @vencord/discord-types versions pin an exact @types/react peer
+          # (e.g. 19.2.3), which conflicts with the root's ^19.3.0 and breaks
+          # `npm ci`. Re-enable once upstream accepts the current @types/react.
           - dependency-name: "@vencord/discord-types"
-            versions:
-                - "1.0.2"
           # typescript-eslint's peer range is `typescript >=4.8.4 <6.1.0`, so a
           # TypeScript 7 major bump would only produce a red CI run.
           - dependency-name: "typescript"
@@ -42,12 +40,14 @@ updates:
       schedule:
           interval: "weekly"
           day: "monday"
+      open-pull-requests-limit: 1
+      commit-message:
+          prefix: "chore(deps)"
       labels:
           - "dependencies"
-      assignees:
-          - "zpt0"
-      open-pull-requests-limit: 1
       groups:
           all-actions:
               patterns:
                   - "*"
+      assignees:
+          - "zpt0"
