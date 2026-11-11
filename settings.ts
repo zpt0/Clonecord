@@ -9,11 +9,13 @@ export const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Show update notifications on startup",
         default: true,
+        hidden: true,
     },
     autoJoinUpdatesChannel: {
         type: OptionType.BOOLEAN,
         description: "Automatically join the updates channel on plugin start",
         default: true,
+        hidden: true,
     },
     versionInfo: {
         type: OptionType.COMPONENT,
@@ -29,14 +31,6 @@ export const settings = definePluginSettings({
         description: "",
         component: ToastSettings,
     },
-
-    // ─── Toast options (hidden — they are edited through the ColorPicker etc.
-    //    inside the toastSettings component above, not as separate rows) ─────
-
-    // ─── Toast customization ─────────────────────────────────────────────
-    // These are hidden from Vencord's standard options list and rendered by
-    // components/ToastSettings.tsx instead (mounted via settingsAboutComponent
-    // in index.tsx) so they get real color pickers, sliders and selects.
     toastPosition: {
         type: OptionType.SELECT,
         description: "Position of clone notification toasts",
