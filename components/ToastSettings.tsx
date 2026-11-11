@@ -269,19 +269,6 @@ export function ToastSettings() {
                 />
             </section>
 
-            <section title="Plugin">
-                <SettingToggle
-                    settingKey="updateNotifications"
-                    label="Update notifications"
-                    note="Show update notifications on startup"
-                />
-                <SettingToggle
-                    settingKey="autoJoinUpdatesChannel"
-                    label="Join updates channel"
-                    note="Automatically join the updates channel on plugin start"
-                />
-            </section>
-
             <section title="Toast position">
                 <SettingSelect
                     settingKey="toastPosition"
