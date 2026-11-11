@@ -3,7 +3,9 @@
 // (components/ToastSettings.tsx).
 //
 // Adapted from Questcord (https://github.com/zpt0/questcord) by zpt0,
-// licensed AGPL-3.0 — Clonecord shares the same author.
+// licensed AGPL-3.0 — Clonecord shares the same author. The R/G/B number
+// inputs of the original are intentionally omitted: colors are picked
+// visually (saturation/value panel + hue slider) or via the hex field.
 // ---------------------------------------------------------------------------
 
 import { React, ReactDOM } from "@webpack/common";
@@ -91,7 +93,6 @@ export function ColorPicker({ value, onChange, fallback = "#5865F2" }: ColorPick
     const swatchRef = React.useRef<HTMLDivElement>(null);
     const [isDraggingPanel, setIsDraggingPanel] = React.useState(false);
     const [isDraggingHue, setIsDraggingHue] = React.useState(false);
-    const [focusedRgb, setFocusedRgb] = React.useState<"r" | "g" | "b" | null>(null);
 
     // the stored value may be an rgba() string (e.g. the border default) —
     // edit from the fallback color in that case
@@ -176,14 +177,6 @@ export function ColorPicker({ value, onChange, fallback = "#5865F2" }: ColorPick
         }
         document.addEventListener("mousemove", onMove);
         document.addEventListener("mouseup", onUp);
-    }
-
-    function handleRgbChange(channel: "r" | "g" | "b", val: number) {
-        const clamped = Math.max(0, Math.min(255, val));
-        const nr = channel === "r" ? clamped : r;
-        const ng = channel === "g" ? clamped : g;
-        const nb = channel === "b" ? clamped : b;
-        onChange(rgbToHex(nr, ng, nb));
     }
 
     function handleHexInput(v: string) {
@@ -309,62 +302,6 @@ export function ColorPicker({ value, onChange, fallback = "#5865F2" }: ColorPick
                                     transition: "width 0.1s, height 0.1s, box-shadow 0.1s",
                                 }}
                             />
-                        </div>
-
-                        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                            {(
-                                [
-                                    ["R", r, "r"],
-                                    ["G", g, "g"],
-                                    ["B", b, "b"],
-                                ] as const
-                            ).map(([label, val, ch]) => (
-                                <label
-                                    key={ch}
-                                    style={{
-                                        flex: 1,
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: 2,
-                                        fontSize: 10,
-                                        color: "#b5bac1",
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    {label}
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        max={255}
-                                        value={val}
-                                        onChange={(e) =>
-                                            handleRgbChange(ch, parseInt(e.target.value) || 0)
-                                        }
-                                        onFocus={() => setFocusedRgb(ch)}
-                                        onBlur={() => setFocusedRgb(null)}
-                                        style={{
-                                            width: "100%",
-                                            background: "#1e1f22",
-                                            border:
-                                                focusedRgb === ch
-                                                    ? "1px solid #5865F2"
-                                                    : "1px solid rgba(255,255,255,0.1)",
-                                            borderRadius: 4,
-                                            color: "#dbdee1",
-                                            padding: "4px 0",
-                                            textAlign: "center",
-                                            fontSize: 12,
-                                            outline: "none",
-                                            boxSizing: "border-box",
-                                            boxShadow:
-                                                focusedRgb === ch
-                                                    ? "0 0 0 1px rgba(88,101,242,0.3)"
-                                                    : "none",
-                                            transition: "border-color 0.15s, box-shadow 0.15s",
-                                        }}
-                                    />
-                                </label>
-                            ))}
                         </div>
 
                         <input

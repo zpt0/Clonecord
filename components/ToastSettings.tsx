@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
-// Questcord-style toast customization UI.
+// Questcord-style settings page.
 //
-// All toast settings are declared `hidden: true` in settings.ts so they do
+// All plugin options are declared `hidden: true` in settings.ts so they do
 // not show up in Vencord's standard options list. Instead this component is
-// mounted at the top of the plugin settings page via `settingsAboutComponent`
-// (index.tsx) and renders real color pickers, sliders and selects.
+// mounted via `settingsAboutComponent` (index.tsx) and renders the version
+// card, toggles, sliders, selects and real color pickers — mirroring the
+// layout of Questcord's settings page 1:1.
 //
 // UI pattern adapted from Questcord (https://github.com/zpt0/questcord) by
 // zpt0, licensed AGPL-3.0 — Clonecord shares the same author.
@@ -15,10 +16,11 @@ import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { Switch } from "@components/Switch";
 import { classNameFactory } from "@utils/css";
-import { React, Select, Slider } from "@webpack/common";
+import { Select, Slider } from "@webpack/common";
 
 import { settings } from "../settings";
 import { ColorPicker } from "./ColorPicker";
+import { VersionDisplay } from "./VersionDisplay";
 
 const cl = classNameFactory("vc-clonecord-settings-");
 
@@ -60,15 +62,6 @@ const TOAST_SETTING_KEYS = [
     // legacy key from earlier versions
     "toastCustomColor",
 ];
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <section>
-            <div className={cl("section-title")}>{title}</div>
-            {children}
-        </section>
-    );
-}
 
 function SettingToggle({
     settingKey,
@@ -219,7 +212,7 @@ function SettingColor({
     );
 }
 
-function resetToastCustomization() {
+function getDefaults(): Record<string, any> {
     const defaults: Record<string, any> = {};
     try {
         for (const [key, def] of Object.entries((settings as any).def ?? {})) {
@@ -227,6 +220,11 @@ function resetToastCustomization() {
             if (d !== undefined) defaults[key] = d;
         }
     } catch {}
+    return defaults;
+}
+
+function resetToastCustomization() {
+    const defaults = getDefaults();
     const store = settings.store as Record<string, any>;
     for (const key of TOAST_SETTING_KEYS) {
         if (defaults[key] !== undefined) store[key] = defaults[key];
@@ -234,10 +232,18 @@ function resetToastCustomization() {
     }
 }
 
+function resetAllSettings() {
+    const defaults = getDefaults();
+    const store = settings.store as Record<string, any>;
+    for (const key of Object.keys(defaults)) store[key] = defaults[key];
+}
+
 export function ToastSettings() {
     return (
         <div className={cl("root")}>
-            <Section title="Toast behaviour">
+            <VersionDisplay />
+
+            <section title="Toast behaviour">
                 <SettingToggle
                     settingKey="toastAutoDismiss"
                     label="Auto-dismiss"
@@ -265,18 +271,67 @@ export function ToastSettings() {
                     markers={[1, 2, 3, 4, 5, 6, 7, 8]}
                     unit=""
                 />
-            </Section>
+            </section>
 
-            <Section title="Toast position">
+            <section title="Plugin">
+                <SettingToggle
+                    settingKey="updateNotifications"
+                    label="Update notifications"
+                    note="Show update notifications on startup"
+                />
+                <SettingToggle
+                    settingKey="autoJoinUpdatesChannel"
+                    label="Join updates channel"
+                    note="Automatically join the updates channel on plugin start"
+                />
+            </section>
+
+            <section title="Toast position">
                 <SettingSelect
                     settingKey="toastPosition"
                     label="Position"
                     note="Where toast notifications appear on screen"
                     options={POSITION_OPTIONS}
                 />
-            </Section>
+            </section>
 
-            <Section title="Toast appearance">
+            <section title="Toast colors">
+                <div className={cl("color-grid")}>
+                    <SettingColor
+                        settingKey="toastBgColor"
+                        label="Background"
+                        note="Toast background color"
+                    />
+                    <SettingColor
+                        settingKey="toastAccentColor"
+                        label="Accent"
+                        note="Progress bars, spinners, highlights"
+                    />
+                    <SettingColor
+                        settingKey="toastTextColor"
+                        label="Text"
+                        note="Toast title text color"
+                    />
+                    <SettingColor
+                        settingKey="toastPercentColor"
+                        label="Percent"
+                        note="Progress percent text color"
+                    />
+                    <SettingColor
+                        settingKey="toastBarBgColor"
+                        label="Bar Background"
+                        note="Progress bar track color"
+                    />
+                    <SettingColor
+                        settingKey="toastBorderColor"
+                        label="Border"
+                        note="Toast border color"
+                        fallback="#FFFFFF"
+                    />
+                </div>
+            </section>
+
+            <section title="Toast appearance">
                 <SettingSelect
                     settingKey="toastStyle"
                     label="Style"
@@ -324,58 +379,38 @@ export function ToastSettings() {
                     max={800}
                     markers={[250, 300, 350, 400, 450, 500, 600, 800]}
                 />
-            </Section>
+            </section>
 
-            <Section title="Toast colors">
-                <div className={cl("color-grid")}>
-                    <SettingColor
-                        settingKey="toastBgColor"
-                        label="Background"
-                        note="Toast background color"
-                    />
-                    <SettingColor
-                        settingKey="toastAccentColor"
-                        label="Accent"
-                        note="Progress bars, spinners, highlights"
-                    />
-                    <SettingColor
-                        settingKey="toastTextColor"
-                        label="Text"
-                        note="Toast title text color"
-                    />
-                    <SettingColor
-                        settingKey="toastPercentColor"
-                        label="Percent"
-                        note="Progress percent text color"
-                    />
-                    <SettingColor
-                        settingKey="toastBarBgColor"
-                        label="Bar Background"
-                        note="Progress bar track color"
-                    />
-                    <SettingColor
-                        settingKey="toastBorderColor"
-                        label="Border"
-                        note="Toast border color"
-                        fallback="#FFFFFF"
-                    />
+            <section title="Reset">
+                <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                        className={cl("reset-btn")}
+                        style={{ flex: 1 }}
+                        onClick={() => {
+                            try {
+                                resetToastCustomization();
+                            } catch (e) {
+                                console.warn("[Clonecord] resetToastCustomization failed:", e);
+                            }
+                        }}
+                    >
+                        Reset Customization
+                    </button>
+                    <button
+                        className={cl("reset-btn")}
+                        style={{ flex: 1 }}
+                        onClick={() => {
+                            try {
+                                resetAllSettings();
+                            } catch (e) {
+                                console.warn("[Clonecord] resetAllSettings failed:", e);
+                            }
+                        }}
+                    >
+                        Reset All Settings
+                    </button>
                 </div>
-            </Section>
-
-            <Section title="Reset">
-                <button
-                    className={cl("reset-btn")}
-                    onClick={() => {
-                        try {
-                            resetToastCustomization();
-                        } catch (e) {
-                            console.warn("[Clonecord] resetToastCustomization failed:", e);
-                        }
-                    }}
-                >
-                    Reset Customization
-                </button>
-            </Section>
+            </section>
         </div>
     );
 }

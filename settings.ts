@@ -3,20 +3,26 @@ import { OptionType } from "@utils/types";
 import { VersionDisplay } from "./components/VersionDisplay";
 
 export const settings = definePluginSettings({
+    // All options are hidden from Vencord's standard options list — they are
+    // rendered by components/ToastSettings.tsx instead (settingsAboutComponent
+    // in index.tsx), mirroring Questcord's custom settings page.
     updateNotifications: {
         type: OptionType.BOOLEAN,
         description: "Show update notifications on startup",
         default: true,
+        hidden: true,
     },
     autoJoinUpdatesChannel: {
         type: OptionType.BOOLEAN,
         description: "Automatically join the updates channel on plugin start",
         default: true,
+        hidden: true,
     },
     versionInfo: {
         type: OptionType.COMPONENT,
         description: "",
         component: VersionDisplay,
+        hidden: true,
     },
 
     // ─── Toast customization ─────────────────────────────────────────────
