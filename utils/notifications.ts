@@ -39,14 +39,12 @@ function startProgressTimer(notificationId: string) {
         if (!state.cloneStartTime) return;
         const elapsed = Date.now() - state.cloneStartTime;
         const formatted = formatElapsed(elapsed);
-
         const pill = document.getElementById(notificationId);
         if (!pill || pill.classList.contains("completed")) {
             clearInterval(state.timerInterval!);
             state.timerInterval = null;
             return;
         }
-
         const timerCompact = pill.querySelector(".cloner-pill-timer");
         if (timerCompact) timerCompact.textContent = formatted;
     }, 1000);
@@ -147,9 +145,7 @@ export function notify(
     });
 
     if (duration !== 0) {
-        setTimeout(() => {
-            closePill(notificationId);
-        }, actualDuration);
+        setTimeout(() => closePill(notificationId), actualDuration);
     }
 
     return notificationId;
@@ -217,9 +213,7 @@ export function createMainProgressNotification(
                 state.abortController.abort();
                 state.abortController = null;
             }
-
             pill.classList.add("completed");
-
             if (!isExistingServer && state.currentCloneGuildId) {
                 try {
                     await RestAPI.del({ url: `/guilds/${state.currentCloneGuildId}` });
@@ -274,7 +268,6 @@ export function completeMainProgress(
         clearInterval(state.timerInterval);
         state.timerInterval = null;
     }
-
     const elapsedText = state.cloneStartTime
         ? ` \u2022 ${formatElapsed(Date.now() - state.cloneStartTime)}`
         : "";
@@ -293,8 +286,8 @@ export function completeMainProgress(
         percentEl.textContent = customPercentText
             ? customPercentText
             : success
-              ? `Done${elapsedText}`
-              : "Error";
+                ? `Done${elapsedText}`
+                : "Error";
 
     const progressBar = pill.querySelector(".cloner-pill-progress-fill") as HTMLElement;
     if (progressBar) {
@@ -339,8 +332,7 @@ export function updateThrottledProgress(info: ThrottleProgressInfo) {
                 : "");
         if (bodyEl) bodyEl.textContent = msg;
     } else if (status.avgRequestMs > 0 && remainingItems > 0 && percent < 100) {
-        const etaMs =
-            (remainingItems * status.avgRequestMs) / Math.max(1, status.currentConcurrency);
+        const etaMs = (remainingItems * status.avgRequestMs) / Math.max(1, status.currentConcurrency);
         const eta = formatEta(etaMs);
         if (eta) {
             const percentEl = pill.querySelector(".cloner-pill-percent");
@@ -383,7 +375,7 @@ export function showCloneSummary(
     pill.className = `cloner-sub-pill cloner-summary ${hasFailures ? "error" : "success"}`;
     pill.id = notificationId;
 
-    // stat rows \u2014 only show what was actually cloned
+    // stat rows — only show what was actually cloned
     const statRows: { label: string; value: number | boolean }[] = [
         { label: "Channels", value: stats.channelsCloned },
         { label: "Categories", value: stats.categoriesCloned },
@@ -485,7 +477,11 @@ export function showCloneSummary(
                         gaps
                             .map(
                                 (g) =>
-                                    `<div class="cloner-summary-failure-row"><span class="cloner-summary-failure-name">${escapeHtml(g.title)}</span><span class="cloner-summary-failure-err">${escapeHtml(g.detail)}</span></div>`
+                                    `<div class="cloner-summary-failure-row"><span class="cloner-summary-failure-name">${escapeHtml(
+                                        g.title
+                                    )}</span><span class="cloner-summary-failure-err">${escapeHtml(
+                                        g.detail
+                                    )}</span></div>`
                             )
                             .join("") +
                         `</div>` +
