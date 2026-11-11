@@ -1,11 +1,10 @@
 // ---------------------------------------------------------------------------
-// Questcord-style settings page.
+// Questcord-style toast customization UI section.
 //
-// All plugin options are declared `hidden: true` in settings.ts so they do
-// not show up in Vencord's standard options list. Instead this component is
-// mounted via `settingsAboutComponent` (index.tsx) and renders the version
-// card, toggles, sliders, selects and real color pickers — mirroring the
-// layout of Questcord's settings page 1:1.
+// Rendered as a visible COMPONENT row inside Vencord's settings (settings.ts),
+// NOT via settingsAboutComponent — so Clonecord keeps its normal settings icon.
+// All toast* options stay hidden: they are edited through the ColorPicker,
+// sliders and selects inside this component.
 //
 // UI pattern adapted from Questcord (https://github.com/zpt0/questcord) by
 // zpt0, licensed AGPL-3.0 — Clonecord shares the same author.
@@ -20,7 +19,6 @@ import { Select, Slider } from "@webpack/common";
 
 import { settings } from "../settings";
 import { ColorPicker } from "./ColorPicker";
-import { VersionDisplay } from "./VersionDisplay";
 
 const cl = classNameFactory("vc-clonecord-settings-");
 
@@ -241,8 +239,6 @@ function resetAllSettings() {
 export function ToastSettings() {
     return (
         <div className={cl("root")}>
-            <VersionDisplay />
-
             <section title="Toast behaviour">
                 <SettingToggle
                     settingKey="toastAutoDismiss"
