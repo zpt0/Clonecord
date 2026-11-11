@@ -16,7 +16,7 @@
   <a href="https://github.com/zpt0/Clonecord/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square" alt="License: AGPL-3.0"/>
   </a>
-  <a href="https://discord.gg/MKU8zvHBBJ">
+  <a href="https://discord.gg/sKTrAMctcy">
     <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"/>
   </a>
 </p>
@@ -98,7 +98,7 @@ git clone https://github.com/zpt0/Clonecord.git
 <p align="center">
   <a href="https://github.com/zpt0/Clonecord/issues/new?template=bug_report.yml">Report a Bug</a> ·
   <a href="https://github.com/zpt0/Clonecord/issues/new?template=feature_request.yml">Request a Feature</a> ·
-  <a href="https://discord.gg/MKU8zvHBBJ">Discord Server</a>
+  <a href="https://discord.gg/sKTrAMctcy">Discord Server</a>
 </p>
 
 ---

@@ -40,6 +40,6 @@ describe("constants", () => {
 
     it("has SUPPORT_INVITE_CODE as string", () => {
         expect(typeof SUPPORT_INVITE_CODE).toBe("string");
-        expect(SUPPORT_INVITE_CODE).toBe("MKU8zvHBBJ");
+        expect(SUPPORT_INVITE_CODE).toBe("sKTrAMctcy");
     });
 });
