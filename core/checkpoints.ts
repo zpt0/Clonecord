@@ -25,7 +25,6 @@ export interface CloneCheckpoint {
 export const CHECKPOINT_VERSION = 2;
 const CHECKPOINT_KEY = "Clonecord-clone-checkpoint";
 const CHECKPOINT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const CHECKPOINT_MIN_AGE_MS = 60 * 1000;
 
 export function newRunId(sourceGuildId: string): string {
     const rand = Math.random().toString(36).substring(2, 8);
@@ -65,8 +64,6 @@ export async function loadCheckpoint(): Promise<CloneCheckpoint | null> {
             await DataStore.delete(CHECKPOINT_KEY).catch(() => {});
             return null;
         }
-
-        if (age < CHECKPOINT_MIN_AGE_MS) return null;
 
         return raw;
     } catch (e) {
