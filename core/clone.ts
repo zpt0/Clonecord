@@ -5,9 +5,6 @@ import { TaskQueue } from "../utils/TaskQueue";
 import { translateError } from "../utils/errorHandler";
 import { state, throwIfCancelled } from "../store";
 import { fetchGuildData, fetchGuildRoles, extractChannels, normalizeChannel, fetchAssetBase64 } from "../utils/api";
-import { TaskQueue } from "../utils/TaskQueue";
-import { translateError } from "../utils/errorHandler";
-import { state, throwIfCancelled } from "../store";
 import { CloneOptions } from "../types";
 import { Guild } from "@vencord/discord-types";
 import { sleep } from "../utils/helpers";
@@ -205,7 +202,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         throwIfCancelled();
 
-        let newGuildId: string;
+        let newGuildId: string = "";
 
         if (options.targetGuildId) {
             newGuildId = options.targetGuildId;
@@ -266,9 +263,9 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     } else {
                         throw new Error("Failed to create server — no ID returned");
                     }
-                } catch (e) {
-                    if (e.status === 429) {
-                        const retryAfter = parseFloat(e.body.retry_after);
+                } catch (e: any) {
+                    if (e?.status === 429) {
+                        const retryAfter = parseFloat(e?.body?.retry_after);
                         await sleep(retryAfter * 1000);
                         attempts++;
                         continue;

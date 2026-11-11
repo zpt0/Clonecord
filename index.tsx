@@ -42,7 +42,7 @@ function ClonecordIcon({ size = 18 }: { size?: number }) {
 
 async function checkForUpdates(): Promise<void> {
     if (!UPDATE_CHECK_ENABLED) return;
-    if (!settings.updateNotifications.value) return;
+    if ((settings as any).store?.updateNotifications === false) return;
 
     try {
         const lastDismissed = (await DataStore.get("Clonecord-dismissed-version")) as
@@ -180,7 +180,7 @@ export default definePlugin({
         state.settings = settings;
         setTimeout(() => checkForUpdates(), 5000);
         setTimeout(() => {
-            if (settings.autoJoinUpdatesChannel.value) {
+            if ((settings as any).store?.autoJoinUpdatesChannel !== false) {
                 navigateToUpdatesChannel().catch(() => {});
             }
         }, 3000);

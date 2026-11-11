@@ -6,12 +6,31 @@ import { RestAPI, GuildStore } from "@webpack/common";
 import { findByPropsLazy } from "@webpack";
 import { TaskQueue } from "./TaskQueue";
 import { cloneOnboarding } from "../core/cloneOnboarding";
+import { retryFailedItems } from "../core/retry";
 import { CloneContext } from "../core/types";
 import type { RateLimitStatus } from "./TaskQueue";
 import { settings } from "../settings";
 
 // Clamp helper to keep progress within 0‑100%
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+
+/**
+ * Read a plugin setting defensively.
+ *
+ * In Vencord, `definePluginSettings` exposes the live values on `settings.store`
+ * (there is no `.value` per setting at runtime). Accessing anything else
+ * returns undefined, which used to crash with "Cannot read properties of
+ * undefined (reading 'value')". This helper always falls back to a default.
+ */
+function toastSetting<T>(key: string, fallback: T): T {
+    try {
+        const store = (settings as any).store ?? {};
+        const value = store[key];
+        return value == null ? fallback : (value as T);
+    } catch {
+        return fallback;
+    }
+}
 
 export function formatElapsed(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);
@@ -76,9 +95,9 @@ export function getPillContainer(): HTMLElement {
 }
 
 function applyContainerPosition(container: HTMLElement): void {
-    const pos = settings.toastPosition.value as string;
-    const maxW = settings.toastMaxWidth.value as number;
-    const opacity = settings.toastOpacity.value as number;
+    const pos = toastSetting<string>("toastPosition", "top-right");
+    const maxW = toastSetting<number>("toastMaxWidth", 400);
+    const opacity = toastSetting<number>("toastOpacity", 85);
 
     // Reset all positioning
     container.style.top = "";
@@ -90,6 +109,9 @@ function applyContainerPosition(container: HTMLElement): void {
     container.style.flexDirection = "";
     container.style.maxWidth = `${maxW}px`;
 
+    let slide = "translateX(40px)";
+    let origin = "top right";
+
     if (pos === "top-right") {
         container.style.top = "16px";
         container.style.right = "16px";
@@ -100,16 +122,21 @@ function applyContainerPosition(container: HTMLElement): void {
         container.style.left = "16px";
         container.style.alignItems = "flex-start";
         container.style.flexDirection = "column-reverse";
+        slide = "translateX(-40px)";
+        origin = "top left";
     } else if (pos === "bottom-right") {
         container.style.bottom = "16px";
         container.style.right = "16px";
         container.style.alignItems = "flex-end";
         container.style.flexDirection = "column";
+        origin = "bottom right";
     } else if (pos === "bottom-left") {
         container.style.bottom = "16px";
         container.style.left = "16px";
         container.style.alignItems = "flex-start";
         container.style.flexDirection = "column";
+        slide = "translateX(-40px)";
+        origin = "bottom left";
     } else {
         // top-center
         container.style.top = "16px";
@@ -117,9 +144,13 @@ function applyContainerPosition(container: HTMLElement): void {
         container.style.transform = "translateX(-50%)";
         container.style.alignItems = "center";
         container.style.flexDirection = "column-reverse";
+        slide = "translateY(-40px)";
+        origin = "top center";
     }
 
-    // Apply opacity as a CSS variable so pills can reference it
+    // pills inherit these so entry/exit animations match the chosen corner
+    container.style.setProperty("--cc-toast-slide", slide);
+    container.style.setProperty("--cc-toast-origin", origin);
     container.style.setProperty("--cc-toast-opacity", String(opacity / 100));
 }
 
@@ -139,8 +170,8 @@ export function notify(
     actions: NotificationAction[] = []
 ): string {
     const container = getPillContainer();
-    const autoDismiss = settings.toastAutoDismiss.value as boolean;
-    const defaultDelay = settings.toastDismissDelayMs.value as number;
+    const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
+    const defaultDelay = toastSetting<number>("toastDismissDelayMs", 8000);
     const actualDuration = autoDismiss ? Math.max(duration || defaultDelay, 1000) : duration === 0 ? 0 : duration;
     const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
@@ -151,7 +182,7 @@ export function notify(
     if (lastShown[key] && now - lastShown[key] < COOLDOWN_MS) {
         // skip showing this notification
     } else {
-        if (duration !== 0) {
+        if (actualDuration > 0) {
             const existingNotifications = container.querySelectorAll(".cloner-sub-pill:not(.hiding)");
             if (existingNotifications.length > 4) {
                 const oldest = existingNotifications[0];
@@ -349,8 +380,8 @@ export function completeMainProgress(
 
     pill.classList.add(success ? "success" : "error");
 
-    const autoDismiss = settings.toastAutoDismiss.value as boolean;
-    const delay = autoDismiss ? settings.toastDismissDelayMs.value as number : 0;
+    const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
+    const delay = autoDismiss ? toastSetting<number>("toastDismissDelayMs", 8000) : 0;
     if (delay > 0) {
         setTimeout(() => closePill(id), delay);
     }
@@ -516,7 +547,43 @@ export function showCloneSummary(
         document.getElementById(btnIds.retry)?.addEventListener("click", async () => {
             closePill(notificationId);
             notify("Retrying", "Re-attempting failed items...", "info", 5000);
-            await retryFailedItems(failures);
+            try {
+                const result = await retryFailedItems(failures);
+
+                if (result.fatal) {
+                    notify("Retry not possible", result.fatal, "error", 0, [
+                        { label: "Dismiss", type: "default", onClick: (id) => closePill(id) },
+                    ]);
+                    return;
+                }
+
+                if (result.failed.length === 0 && result.skipped.length === 0) {
+                    notify(
+                        "Retry complete",
+                        `All ${result.succeeded.length} item(s) cloned successfully.`,
+                        "success",
+                        8000
+                    );
+                    return;
+                }
+
+                // some items are still broken — show an updated summary
+                notify(
+                    "Retry finished",
+                    `${result.succeeded.length} succeeded, ${result.failed.length} still failing${
+                        result.skipped.length ? `, ${result.skipped.length} skipped` : ""
+                    }.`,
+                    result.failed.length ? "error" : "info",
+                    10000
+                );
+                if (state.cloneStats) {
+                    showCloneSummary(state.cloneStats, result.failed);
+                }
+            } catch (e) {
+                notify("Retry failed", e instanceof Error ? e.message : String(e), "error", 0, [
+                    { label: "Dismiss", type: "default", onClick: (id) => closePill(id) },
+                ]);
+            }
         });
     }
 
@@ -552,8 +619,8 @@ export function showCloneSummary(
     }
 
     // auto-dismiss so the summary is temporary; failures stay a bit longer so the user can retry
-    const autoDismiss = settings.toastAutoDismiss.value as boolean;
-    const baseDelay = settings.toastDismissDelayMs.value as number;
+    const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
+    const baseDelay = toastSetting<number>("toastDismissDelayMs", 8000);
     const summaryDelay = autoDismiss ? (hasFailures ? Math.max(baseDelay, 15000) : baseDelay) : 0;
     if (summaryDelay > 0) {
         setTimeout(() => closePill(notificationId), summaryDelay);
