@@ -254,7 +254,6 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                 icon: iconData,
                 system_channel_flags: (sourceGuild as any).system_channel_flags || 0,
             };
-            let newGuildId: string;
             let attempts = 0;
             const maxAttempts = 3;
             while (attempts < maxAttempts) {

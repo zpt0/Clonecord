@@ -47,13 +47,20 @@ export async function loadCheckpoint(): Promise<CloneCheckpoint | null> {
         const raw = (await DataStore.get(CHECKPOINT_KEY)) as CloneCheckpoint | null;
         if (!raw) return null;
 
+        // Guard against missing delete method
+        const deleteDataStore = typeof DataStore.delete === "function" ? DataStore.delete : null;
+
         if (raw.completedAt != null) {
-            await DataStore.delete(CHECKPOINT_KEY).catch(() => {});
+            if (deleteDataStore) {
+                await deleteDataStore(CHECKPOINT_KEY).catch(() => {});
+            }
             return null;
         }
 
         if (raw.version !== CHECKPOINT_VERSION) {
-            await DataStore.delete(CHECKPOINT_KEY).catch(() => {});
+            if (deleteDataStore) {
+                await deleteDataStore(CHECKPOINT_KEY).catch(() => {});
+            }
             return null;
         }
 
@@ -61,7 +68,9 @@ export async function loadCheckpoint(): Promise<CloneCheckpoint | null> {
 
         const age = Date.now() - (raw.updatedAt || 0);
         if (age > CHECKPOINT_TTL_MS) {
-            await DataStore.delete(CHECKPOINT_KEY).catch(() => {});
+            if (deleteDataStore) {
+                await deleteDataStore(CHECKPOINT_KEY).catch(() => {});
+            }
             return null;
         }
 
@@ -79,14 +88,16 @@ export async function clearCheckpoint(): Promise<void> {
             await DataStore.set(CHECKPOINT_KEY, { ...raw, completedAt: Date.now() });
         }
         setTimeout(async () => {
-            try {
-                await DataStore.delete(CHECKPOINT_KEY);
-            } catch {}
+            const deleteDataStore = typeof DataStore.delete === "function" ? DataStore.delete : null;
+            if (deleteDataStore) {
+                await deleteDataStore(CHECKPOINT_KEY).catch(() => {});
+            }
         }, 60000);
     } catch (e) {
-        try {
-            await DataStore.delete(CHECKPOINT_KEY);
-        } catch {}
+        const deleteDataStore = typeof DataStore.delete === "function" ? DataStore.delete : null;
+        if (deleteDataStore) {
+            await deleteDataStore(CHECKPOINT_KEY).catch(() => {});
+        }
     }
 }
 
