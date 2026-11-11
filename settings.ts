@@ -19,17 +19,22 @@ export const settings = definePluginSettings({
         component: VersionDisplay,
     },
 
-    // ─── Toast / Pill Customization ───────────────────────────────────────
+    // ─── Toast customization ─────────────────────────────────────────────
+    // These are hidden from Vencord's standard options list and rendered by
+    // components/ToastSettings.tsx instead (mounted via settingsAboutComponent
+    // in index.tsx) so they get real color pickers, sliders and selects.
     toastPosition: {
         type: OptionType.SELECT,
         description: "Position of clone notification toasts",
         options: [
             { label: "Top Right", value: "top-right", default: true },
             { label: "Top Left", value: "top-left" },
+            { label: "Top Center", value: "top-center" },
             { label: "Bottom Right", value: "bottom-right" },
             { label: "Bottom Left", value: "bottom-left" },
-            { label: "Top Center", value: "top-center" },
+            { label: "Bottom Center", value: "bottom-center" },
         ],
+        hidden: true,
     },
     toastStyle: {
         type: OptionType.SELECT,
@@ -39,66 +44,106 @@ export const settings = definePluginSettings({
             { label: "Solid (dark)", value: "solid" },
             { label: "Minimal (flat)", value: "minimal" },
         ],
+        hidden: true,
+    },
+
+    toastBgColor: {
+        type: OptionType.STRING,
+        description: "Toast background color (hex, e.g. #000000)",
+        default: "#000000",
+        hidden: true,
     },
     toastAccentColor: {
-        type: OptionType.SELECT,
-        description: "Toast accent color",
-        options: [
-            { label: "Blurple", value: "blurple", default: true },
-            { label: "Green", value: "green" },
-            { label: "Yellow", value: "yellow" },
-            { label: "Red", value: "red" },
-            { label: "Fuchsia", value: "fuchsia" },
-            { label: "Cyan", value: "cyan" },
-            { label: "White", value: "white" },
-            { label: "Custom…", value: "custom" },
-        ],
-    },
-    toastCustomColor: {
         type: OptionType.STRING,
-        description: "Custom accent color (used when accent is 'Custom…')",
+        description: "Accent color for progress bars, spinners, highlights (hex)",
         default: "#5865F2",
-        placeholder: "#5865F2",
-        isValid: (value: string) =>
-            /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(value).trim()) ||
-            "Enter a valid hex color like #5865F2",
+        hidden: true,
     },
-    toastAutoDismiss: {
-        type: OptionType.BOOLEAN,
-        description: "Automatically dismiss toasts after the set time (hovering pauses it)",
-        default: true,
+    toastTextColor: {
+        type: OptionType.STRING,
+        description: "Toast title text color (hex)",
+        default: "#FFFFFF",
+        hidden: true,
     },
-    toastDismissDelayMs: {
+    toastPercentColor: {
+        type: OptionType.STRING,
+        description: "Progress percent text color (hex)",
+        default: "#43b581",
+        hidden: true,
+    },
+    toastBarBgColor: {
+        type: OptionType.STRING,
+        description: "Progress bar track color (hex)",
+        default: "#333333",
+        hidden: true,
+    },
+    toastBorderColor: {
+        type: OptionType.STRING,
+        description: "Toast border color (hex, or an rgba() string)",
+        default: "rgba(255,255,255,0.08)",
+        hidden: true,
+    },
+
+    toastBorderRadius: {
         type: OptionType.SLIDER,
-        description: "Auto-dismiss delay in milliseconds (0 = never)",
-        default: 8000,
-        markers: [0, 1000, 2000, 5000, 8000, 10000, 15000, 20000, 30000, 60000],
-        stickToMarkers: true,
+        description: "Toast corner roundness (px)",
+        default: 10,
+        markers: [0, 4, 8, 10, 12, 16, 20, 24, 32],
+        hidden: true,
+    },
+    toastFontSize: {
+        type: OptionType.SLIDER,
+        description: "Toast text size (px)",
+        default: 13,
+        markers: [10, 11, 12, 13, 14, 15, 16, 18, 20],
+        hidden: true,
+    },
+    toastPadding: {
+        type: OptionType.SLIDER,
+        description: "Toast inner padding (px)",
+        default: 10,
+        markers: [4, 6, 8, 10, 12, 16],
+        hidden: true,
+    },
+    toastOpacity: {
+        type: OptionType.SLIDER,
+        description: "Toast background opacity",
+        default: 85,
+        markers: [50, 60, 70, 80, 85, 90, 95, 100],
+        hidden: true,
     },
     toastMaxWidth: {
         type: OptionType.SLIDER,
         description: "Maximum width of toast pills in pixels",
         default: 400,
         markers: [250, 300, 350, 400, 450, 500, 600, 800],
-        stickToMarkers: true,
+        hidden: true,
     },
-    toastOpacity: {
+
+    toastAutoDismiss: {
+        type: OptionType.BOOLEAN,
+        description: "Automatically dismiss toasts after the set time (hovering pauses it)",
+        default: true,
+        hidden: true,
+    },
+    toastDismissDelayMs: {
         type: OptionType.SLIDER,
-        description: "Toast background opacity (0–100)",
-        default: 85,
-        markers: [0, 25, 50, 60, 70, 80, 85, 90, 95, 100],
-        stickToMarkers: true,
+        description: "Auto-dismiss delay in milliseconds",
+        default: 8000,
+        markers: [1000, 2000, 3000, 5000, 8000, 10000, 15000, 20000, 30000],
+        hidden: true,
     },
     toastMaxStack: {
         type: OptionType.SLIDER,
         description: "Maximum number of visible toasts at once",
         default: 5,
         markers: [1, 2, 3, 4, 5, 6, 7, 8],
-        stickToMarkers: true,
+        hidden: true,
     },
     toastShowTimer: {
         type: OptionType.BOOLEAN,
         description: "Show elapsed time on the progress toast",
         default: true,
+        hidden: true,
     },
 });

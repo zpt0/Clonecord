@@ -72,6 +72,16 @@ declare module "@webpack/common" {
 
     const Checkbox: React.FC<any>;
 
+    const Select: React.FC<any>;
+
+    const Slider: React.FC<any>;
+
+    // Minimal shape of Vencord's re-exported ReactDOM (only what we use).
+    // Declared inline because @types/react-dom is not a dependency here.
+    const ReactDOM: {
+        createPortal(node: React.ReactNode, container: Element | DocumentFragment): React.ReactNode;
+    };
+
     const NavigationRouter: {
         transitionTo(path: string): void;
         back(): void;
@@ -96,6 +106,7 @@ declare module "@webpack/common" {
 
     export {
         React,
+        ReactDOM,
         Menu,
         RestAPI,
         GuildStore,
@@ -104,6 +115,8 @@ declare module "@webpack/common" {
         UserStore,
         SearchableSelect,
         Checkbox,
+        Select,
+        Slider,
         NavigationRouter,
         ChannelStore,
         InviteActions,

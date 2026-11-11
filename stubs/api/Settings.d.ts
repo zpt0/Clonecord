@@ -14,6 +14,8 @@ declare module "@api/Settings" {
         type: OptionType;
         description: string;
         restartNeeded?: boolean;
+        /** Hide from Vencord's standard options list (rendered by custom UI). */
+        hidden?: boolean;
     }
 
     interface StringOption extends SettingDefinitionBase {
@@ -79,6 +81,13 @@ declare module "@api/Settings" {
 
     interface Settings {
         store: Record<string, any>;
+        /** Option definitions, keyed by setting name. */
+        def: Record<string, any>;
+        /**
+         * React hook: subscribes the calling component to the given keys.
+         * Returns the current values, keyed by setting name.
+         */
+        use(keys: string[]): Record<string, any>;
         [key: string]: SettingsOption | (() => any) | any;
         get<T>(key: string): T;
         set(key: string, value: any): void;

@@ -5,12 +5,20 @@
 // break a running clone. Every public entry point swallows its own errors.
 //
 // Styling is driven by CSS custom properties set on the container:
-//   --cc-toast-opacity   background alpha (0-1)
+//   --cc-toast-bg        pill background (rgba, includes the opacity setting)
 //   --cc-accent          accent color (hex)
 //   --cc-accent-rgb      accent color as "r,g,b" for rgba() usage
+//   --cc-toast-text      title/text color (hex)
+//   --cc-percent         progress percent text color (hex)
+//   --cc-bar-bg          progress bar track color (hex)
+//   --cc-border          pill border color (hex or rgba())
+//   --cc-toast-radius    pill corner radius (px)
+//   --cc-toast-font-size pill title font size (px)
+//   --cc-toast-padding   pill inner padding (px)
+//   --cc-toast-max-width pill max width (px)
 //   --cc-toast-slide     entry/exit slide offset (transform)
 //   --cc-toast-origin    transform origin matching the chosen corner
-// and the container carries data-style="glass" | "solid" | "minimal".
+// and the container carries data-pos + data-style="glass" | "solid" | "minimal".
 // ---------------------------------------------------------------------------
 
 import { state } from "../store";
@@ -68,12 +76,29 @@ function normalizeHex(raw: string | undefined | null, fallback: string): string 
     return fallback;
 }
 
+/**
+ * Accent color, with migration for values stored by older builds
+ * ("blurple", "green", … preset names, or "custom" + toastCustomColor).
+ */
 function getAccentColor(): string {
-    const preset = toastSetting<string>("toastAccentColor", "blurple");
-    if (preset === "custom") {
+    const raw = toastSetting<string>("toastAccentColor", "");
+    if (COLOR_PRESETS[raw]) return COLOR_PRESETS[raw];
+    if (raw === "custom") {
+        // older builds stored the custom accent in a separate setting
         return normalizeHex(toastSetting<string>("toastCustomColor", ""), DEFAULT_ACCENT);
     }
-    return COLOR_PRESETS[preset] ?? DEFAULT_ACCENT;
+    return normalizeHex(raw, DEFAULT_ACCENT);
+}
+
+function getColorSetting(key: string, fallback: string): string {
+    return normalizeHex(toastSetting<string>(key, ""), fallback);
+}
+
+/** Border color accepts hex; rgb()/rgba() strings pass through untouched. */
+function getBorderCss(): string {
+    const raw = toastSetting<string>("toastBorderColor", "");
+    if (typeof raw === "string" && /^rgba?\(/i.test(raw.trim())) return raw.trim();
+    return normalizeHex(raw, "rgba(255,255,255,0.08)");
 }
 
 function hexToRgbParts(hex: string): string {
@@ -82,6 +107,17 @@ function hexToRgbParts(hex: string): string {
     const g = parseInt(h.slice(2, 4), 16);
     const b = parseInt(h.slice(4, 6), 16);
     return `${r},${g},${b}`;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+    const m = hex.replace("#", "").match(/.{2}/g);
+    if (!m || m.length < 3) return `rgba(0,0,0,${alpha})`;
+    return `rgba(${parseInt(m[0], 16)},${parseInt(m[1], 16)},${parseInt(m[2], 16)},${alpha})`;
+}
+
+function clampNum(raw: unknown, min: number, max: number, fallback: number): number {
+    const n = typeof raw === "number" && isFinite(raw) ? raw : fallback;
+    return Math.min(Math.max(n, min), max);
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +243,14 @@ export function cleanupContainer() {
     }
 }
 
-const TOAST_POSITIONS = ["top-right", "top-left", "bottom-right", "bottom-left", "top-center"];
+const TOAST_POSITIONS = [
+    "top-right",
+    "top-left",
+    "bottom-right",
+    "bottom-left",
+    "top-center",
+    "bottom-center",
+];
 
 /**
  * Applies the toast theme to the container.
@@ -221,18 +264,30 @@ function applyContainerTheme(container: HTMLElement): void {
     const rawPos = toastSetting<string>("toastPosition", "top-right");
     const pos = TOAST_POSITIONS.includes(rawPos) ? rawPos : "top-right";
 
-    const maxW = Math.round(Math.min(Math.max(toastSetting<number>("toastMaxWidth", 400), 200), 800));
-    const opacity = Math.min(Math.max(toastSetting<number>("toastOpacity", 85), 0), 100);
+    const maxW = Math.round(clampNum(toastSetting<number>("toastMaxWidth", 400), 200, 800, 400));
+    const opacity = clampNum(toastSetting<number>("toastOpacity", 85), 0, 100, 85) / 100;
+    const radius = Math.round(clampNum(toastSetting<number>("toastBorderRadius", 10), 0, 32, 10));
+    const fontSize = Math.round(clampNum(toastSetting<number>("toastFontSize", 13), 8, 24, 13));
+    const padding = Math.round(clampNum(toastSetting<number>("toastPadding", 10), 2, 24, 10));
+
     const rawStyle = toastSetting<string>("toastStyle", "glass");
     const style = ["glass", "solid", "minimal"].includes(rawStyle) ? rawStyle : "glass";
     const accent = getAccentColor();
+    const bg = hexToRgba(getColorSetting("toastBgColor", "#000000"), opacity);
 
     container.dataset.pos = pos;
     container.dataset.style = style;
-    container.style.setProperty("--cc-toast-opacity", String(opacity / 100));
+    container.style.setProperty("--cc-toast-bg", bg);
     container.style.setProperty("--cc-accent", accent);
     container.style.setProperty("--cc-accent-rgb", hexToRgbParts(accent));
+    container.style.setProperty("--cc-toast-text", getColorSetting("toastTextColor", "#FFFFFF"));
+    container.style.setProperty("--cc-percent", getColorSetting("toastPercentColor", "#43b581"));
+    container.style.setProperty("--cc-bar-bg", getColorSetting("toastBarBgColor", "#333333"));
+    container.style.setProperty("--cc-border", getBorderCss());
     container.style.setProperty("--cc-toast-max-width", `${maxW}px`);
+    container.style.setProperty("--cc-toast-radius", `${radius}px`);
+    container.style.setProperty("--cc-toast-font-size", `${fontSize}px`);
+    container.style.setProperty("--cc-toast-padding", `${padding}px`);
 }
 
 export function getPillContainer(): HTMLElement {

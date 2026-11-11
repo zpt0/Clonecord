@@ -2,15 +2,22 @@
    Clonecord Toast System
    ─────────────────────────
    Driven by CSS custom properties set on .cloner-toast-container by JS:
-     --cc-toast-opacity   background alpha (0–1)
+     --cc-toast-bg        pill background (rgba, includes the opacity setting)
      --cc-toast-max-width pill max width (px)
      --cc-accent         accent color (hex)
      --cc-accent-rgb     accent color as "r,g,b" (for rgba() usage)
+     --cc-toast-text     title/text color (hex)
+     --cc-percent        progress percent text color (hex)
+     --cc-bar-bg         progress bar track color (hex)
+     --cc-border         pill border color (hex or rgba())
+     --cc-toast-radius   pill corner radius (px)
+     --cc-toast-font-size pill title font size (px)
+     --cc-toast-padding  pill inner padding (px)
      --cc-toast-slide    entry/exit slide offset (transform)
      --cc-toast-origin   transform origin matching the chosen corner
    Appearance variants via data-style on the container: glass | solid | minimal
    Placement via data-pos on the container: top-right | top-left | bottom-right |
-   bottom-left | top-center
+   bottom-left | top-center | bottom-center
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── Container ───────────────────────────────────────────── */
@@ -30,9 +37,16 @@
     align-items: flex-end;
     padding: 0;
     /* fallbacks in case JS has not set them yet */
-    --cc-toast-opacity: 0.85;
+    --cc-toast-bg: rgba(0, 0, 0, 0.85);
     --cc-accent: #5865f2;
     --cc-accent-rgb: 88, 101, 242;
+    --cc-toast-text: #ffffff;
+    --cc-percent: #43b581;
+    --cc-bar-bg: #333333;
+    --cc-border: rgba(255, 255, 255, 0.08);
+    --cc-toast-radius: 10px;
+    --cc-toast-font-size: 13px;
+    --cc-toast-padding: 10px;
     --cc-toast-slide: translateX(40px);
     --cc-toast-origin: top right;
 }
@@ -107,12 +121,24 @@
     --cc-toast-origin: top center;
 }
 
+.cloner-toast-container[data-pos="bottom-center"] {
+    bottom: 16px;
+    left: 50%;
+    top: auto;
+    right: auto;
+    transform: translateX(-50%);
+    flex-direction: column;
+    align-items: center;
+    --cc-toast-slide: translateY(40px);
+    --cc-toast-origin: bottom center;
+}
+
 /* ─── Shared pill skin + style variants ───────────────────── */
 .cloner-pill,
 .cloner-sub-pill {
-    color: #ffffff;
+    color: var(--cc-toast-text, #ffffff);
     box-sizing: border-box;
-    border-radius: 10px;
+    border-radius: var(--cc-toast-radius, 10px);
     transform-origin: var(--cc-toast-origin, top right);
     will-change: transform, opacity;
 }
@@ -120,27 +146,27 @@
 /* Glass (default): blurred, translucent */
 .cloner-toast-container[data-style="glass"] .cloner-pill,
 .cloner-toast-container[data-style="glass"] .cloner-sub-pill {
-    background: rgba(0, 0, 0, var(--cc-toast-opacity));
+    background: var(--cc-toast-bg, rgba(0, 0, 0, 0.85));
     backdrop-filter: blur(12px) saturate(150%);
     -webkit-backdrop-filter: blur(12px) saturate(150%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--cc-border, rgba(255, 255, 255, 0.1));
     box-shadow:
         0 8px 24px rgba(0, 0, 0, 0.4),
         inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* Solid: opaque dark */
+/* Solid: no blur */
 .cloner-toast-container[data-style="solid"] .cloner-pill,
 .cloner-toast-container[data-style="solid"] .cloner-sub-pill {
-    background: rgb(20 21 25 / min(calc(var(--cc-toast-opacity) + 0.15), 1));
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--cc-toast-bg, rgba(20, 21, 25, 0.95));
+    border: 1px solid var(--cc-border, rgba(255, 255, 255, 0.12));
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 /* Minimal: flat, no blur, no border — only the accent stripe */
 .cloner-toast-container[data-style="minimal"] .cloner-pill,
 .cloner-toast-container[data-style="minimal"] .cloner-sub-pill {
-    background: rgba(0, 0, 0, var(--cc-toast-opacity));
+    background: var(--cc-toast-bg, rgba(0, 0, 0, 0.85));
     border: 1px solid transparent;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
@@ -153,7 +179,7 @@
     overflow: visible;
     width: 100%;
     max-width: var(--cc-toast-max-width, 400px);
-    padding: 10px 14px;
+    padding: var(--cc-toast-padding, 10px) calc(var(--cc-toast-padding, 10px) + 4px);
     margin: 0;
     animation: pillEntry 0.35s cubic-bezier(0.25, 1, 0.5, 1) both;
     transition:
@@ -180,7 +206,7 @@
 }
 
 .cloner-pill-title {
-    font-size: 13px;
+    font-size: var(--cc-toast-font-size, 13px);
     font-weight: 600;
     flex: 1;
     min-width: 0;
@@ -197,8 +223,8 @@
 
 .cloner-pill-percent {
     font-weight: 700;
-    font-size: 13px;
-    color: var(--cc-accent, #5865f2);
+    font-size: var(--cc-toast-font-size, 13px);
+    color: var(--cc-percent, var(--cc-accent, #5865f2));
     flex-shrink: 0;
     text-align: right;
     white-space: nowrap;
@@ -210,6 +236,8 @@
     font-size: 11px;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.4);
+    /* same, but tinted with the configured text color where supported */
+    color: color-mix(in srgb, var(--cc-toast-text, #ffffff) 40%, transparent);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
     flex-shrink: 0;
@@ -279,6 +307,8 @@
 .cloner-pill-body {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.75);
+    /* same, but tinted with the configured text color where supported */
+    color: color-mix(in srgb, var(--cc-toast-text, #ffffff) 75%, transparent);
     text-align: center;
     line-height: 1.5;
     word-break: break-word;
@@ -289,7 +319,7 @@
 /* ─── Progress bar ────────────────────────────────────────── */
 .cloner-pill-progress-bar {
     height: 3px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--cc-bar-bg, rgba(255, 255, 255, 0.1));
     border-radius: 2px;
     overflow: hidden;
     width: 100%;
@@ -411,7 +441,7 @@
     gap: 10px;
     width: 100%;
     max-width: var(--cc-toast-max-width, 400px);
-    padding: 10px 12px;
+    padding: var(--cc-toast-padding, 10px) calc(var(--cc-toast-padding, 10px) + 2px);
     /* accent stripe */
     border-left: 3px solid var(--cc-accent, #5865f2);
     animation: subPillIn 0.35s cubic-bezier(0.25, 1, 0.5, 1) both;
@@ -510,7 +540,7 @@
 
 .cloner-sub-pill-title {
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--cc-toast-font-size, 13px);
     line-height: 1.4;
     white-space: normal;
     overflow: visible;
@@ -522,6 +552,8 @@
 .cloner-sub-pill-body {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.65);
+    /* same, but tinted with the configured text color where supported */
+    color: color-mix(in srgb, var(--cc-toast-text, #ffffff) 65%, transparent);
     line-height: 1.4;
     white-space: normal;
     overflow: visible;
@@ -535,7 +567,7 @@
     align-self: flex-start;
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.4);
+    color: color-mix(in srgb, var(--cc-toast-text, #ffffff) 40%, transparent);
     font-size: 16px;
     font-weight: 700;
     line-height: 1;
@@ -550,8 +582,8 @@
 }
 
 .cloner-toast-close:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--cc-toast-text, #ffffff);
+    background: color-mix(in srgb, var(--cc-toast-text, #ffffff) 8%, transparent);
 }
 
 /* ─── Toast action buttons ────────────────────────────────── */
@@ -564,9 +596,9 @@
 }
 
 .cloner-toast-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #ffffff;
+    background: color-mix(in srgb, var(--cc-toast-text, #ffffff) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cc-toast-text, #ffffff) 12%, transparent);
+    color: var(--cc-toast-text, #ffffff);
     padding: 4px 12px;
     border-radius: 6px;
     font-size: 11px;
@@ -580,7 +612,7 @@
 }
 
 .cloner-toast-btn:hover {
-    background: rgba(255, 255, 255, 0.16);
+    background: color-mix(in srgb, var(--cc-toast-text, #ffffff) 16%, transparent);
     border-color: rgba(var(--cc-accent-rgb, 88, 101, 242), 0.5);
     transform: translateY(-1px);
 }
@@ -633,8 +665,8 @@
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.8);
+    background: color-mix(in srgb, var(--cc-toast-text, #ffffff) 8%, transparent);
+    color: color-mix(in srgb, var(--cc-toast-text, #ffffff) 80%, transparent);
     white-space: nowrap;
 }
 
