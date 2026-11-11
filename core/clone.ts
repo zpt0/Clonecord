@@ -88,6 +88,10 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         return;
     }
 
+    // Reset timer-related state
+    state.cloneStartTime = null;
+    state.timerInterval = null;
+
     state.isCloning = true;
     state.abortController = new AbortController();
     state.emojiIdMap = {};
@@ -230,36 +234,14 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     });
                     await Promise.all(deleteChannelPromises);
                 }
-
-                const existingRoles = await RestAPI.get({ url: `/guilds/${newGuildId}/roles` });
-                const deleteRoles = (existingRoles.body || []).filter(
-                    (r: any) => r.name !== "@everyone"
-                );
-                if (deleteRoles.length > 0) {
-                    updateWithTime(`Deleting ${deleteRoles.length} existing roles...`, 5);
-                    const deleteRolePromises = deleteRoles.map(async (r: any) => {
-                        try {
-                            await taskQueue.execute(async () => {
-                                await RestAPI.del({ url: `/guilds/${newGuildId}/roles/${r.id}` });
-                            });
-                        } catch (e) {
-                            console.warn(`[Clonecord] Failed to delete role ${r.name}:`, e);
-                        }
-                    });
-                    await Promise.all(deleteRolePromises);
-                }
-
-                await sleep(2000);
             }
         } else {
             updateWithTime("Creating new server...", 2);
-
             const createBody: any = {
                 name: `${sourceGuild.name} (Clone)`,
                 icon: iconData,
                 system_channel_flags: (sourceGuild as any).system_channel_flags || 0,
             };
-
             const createResp = (await RestAPI.post({ url: "/guilds", body: createBody })) as any;
             newGuildId = createResp?.body?.id;
             if (!newGuildId) throw new Error("Failed to create server — no ID returned");
@@ -504,6 +486,21 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     "Cancelled"
                 );
             }
+            // Clean up timer and state
+            if (state.timerInterval) {
+                clearInterval(state.timerInterval);
+                state.timerInterval = null;
+            }
+            state.cloneStartTime = null;
+            if (state.abortController) {
+                state.abortController.abort();
+                state.abortController = null;
+            }
+            state.isCloning = false;
+            state.mainProgressNotificationId = null;
+            state.currentCloneGuildId = null;
+            state.skipRolesCallback = null;
+            state.taskQueue = null;
             return;
         }
 
@@ -517,7 +514,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                 "Error"
             );
         } else {
-            notify("Clone Failed", errorMsg, "error", 8000);
+            notify("Clone Failed", errorMsg || "Clone failed", "error", 8000);
         }
 
         if (state.cloneStats) {
@@ -531,6 +528,13 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
         state.currentCloneGuildId = null;
         state.skipRolesCallback = null;
         state.taskQueue = null;
+
+        // Clean up timer state
+        if (state.timerInterval) {
+            clearInterval(state.timerInterval);
+            state.timerInterval = null;
+        }
+        state.cloneStartTime = null;
     }
 }
 
