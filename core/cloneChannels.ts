@@ -361,6 +361,26 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 if (mappedOverwrites.length > 0) chPayload.permission_overwrites = mappedOverwrites;
             }
 
+            // Sanitize payload fields Discord commonly rejects with 400 Bad Request
+            if (chPayload.name == null || String(chPayload.name).trim() === "") {
+                chPayload.name = "cloned-channel";
+            }
+            if (chPayload.topic && chPayload.topic.length > 1024) {
+                chPayload.topic = String(chPayload.topic).slice(0, 1021) + "...";
+            }
+            if (typeof chPayload.rate_limit_per_user === "number") {
+                chPayload.rate_limit_per_user = Math.min(Math.max(chPayload.rate_limit_per_user, 0), 21600);
+            }
+            if (Array.isArray(chPayload.permission_overwrites)) {
+                chPayload.permission_overwrites = chPayload.permission_overwrites
+                    .filter((ow: any) => ow && typeof ow.id === "string" && ow.id.length > 0)
+                    .map((ow: any) => ({
+                        ...ow,
+                        allow: ow.allow != null ? String(ow.allow) : "0",
+                        deny: ow.deny != null ? String(ow.deny) : "0",
+                    }));
+            }
+
             const response = await taskQueue.execute(
                 async () => {
                     return await RestAPI.post({
@@ -395,6 +415,24 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 remainingChannels.length - chStored
             );
         } catch (e: any) {
+            const discordBody =
+                e?.body ??
+                (e?.text
+                    ? (() => {
+                          try {
+                              return JSON.parse(e.text);
+                          } catch {
+                              return e.text;
+                          }
+                      })()
+                    : null);
+            console.error(
+                "[Clonecord] Channel create failed:",
+                ch.name,
+                discordBody,
+                e?.status,
+                e?.code
+            );
             if (e?.rateLimitExhausted) {
                 channelsFailed += remainingChannels.length - chStored;
                 updateWithTime(`Rate limited, skipping remaining channels...`, channelsProgressEnd);
@@ -407,6 +445,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 name: ch.name,
                 error: (e as Error)?.message || String(e),
                 sourceData: ch,
+                discordBody,
             });
             handleCloneError("Channel", e, ch.name);
         }

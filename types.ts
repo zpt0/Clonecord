@@ -34,4 +34,5 @@ export interface CloneFailure {
     name: string;
     error: string;
     sourceData?: any;
+    discordBody?: any;
 }
