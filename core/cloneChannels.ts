@@ -1,5 +1,5 @@
 import { RestAPI, GuildStore } from "@webpack/common";
-import { replaceEmojis, sleep } from "../utils/helpers";
+import { replaceEmojis, sleep, safeString } from "../utils/helpers";
 import { checkGuildExistence } from "../utils/api";
 import { updateWithTime } from "../utils/notifications";
 import { state } from "../store";
@@ -125,13 +125,58 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 `${actionLabel} category ${catStored}/${categoriesToCreate.length}: ${cat.name}`,
                 progress
             );
-        } catch (e) {
+        } catch (e: any) {
+            const discordBody =
+                e?.body ??
+                (e?.text
+                    ? (() => {
+                          try {
+                              return JSON.parse(e.text);
+                          } catch {
+                              return e.text;
+                          }
+                      })()
+                    : null);
+            let discordMessage: string | null = null;
+            if (discordBody && typeof discordBody === "object") {
+                discordMessage =
+                    discordBody.message ||
+                    (discordBody.errors && discordBody.errors._errors
+                        ? discordBody.errors._errors[0]?.message || null
+                        : null) ||
+                    null;
+            } else if (typeof discordBody === "string") {
+                try {
+                    const parsed = JSON.parse(discordBody);
+                    discordMessage =
+                        parsed?.message ||
+                        (parsed?.errors && parsed.errors._errors
+                            ? parsed.errors._errors[0]?.message || null
+                            : null) ||
+                        null;
+                } catch {
+                    discordMessage = discordBody;
+                }
+            }
+            const finalError = safeString(
+                discordMessage || (e as Error)?.message || String(e)
+            );
+            console.error(
+                "[Clonecord] Category create failed:",
+                cat.name,
+                discordBody,
+                e?.status,
+                e?.code,
+                "->",
+                finalError
+            );
             categoriesFailed++;
             state.failedItems.push({
                 context: "Category",
                 name: cat.name,
-                error: (e as Error)?.message || String(e),
+                error: finalError,
                 sourceData: cat,
+                discordBody,
             });
             handleCloneError("Category", e, cat.name);
         }
@@ -381,6 +426,38 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                     }));
             }
 
+            // Additional Discord API validation safeguards (50035 Invalid Form Body)
+            if (typeof chPayload.position !== "number" || !isFinite(chPayload.position)) {
+                chPayload.position = 0;
+            }
+            if (typeof chPayload.nsfw !== "boolean") {
+                chPayload.nsfw = Boolean(chPayload.nsfw);
+            }
+            if (chPayload.name && chPayload.name.length > 100) {
+                chPayload.name = String(chPayload.name).slice(0, 97) + "...";
+            }
+            if (
+                chPayload.type != null &&
+                ![
+                    0, // text
+                    2, // voice
+                    4, // category
+                    5, // news
+                    12, // news? (stage)
+                    13, // stage
+                    15, // forum
+                    16, // media
+                ].includes(chPayload.type)
+            ) {
+                chPayload.type = 0;
+            }
+            if (chPayload.bitrate != null) {
+                chPayload.bitrate = Math.min(Math.max(chPayload.bitrate, 8000), 384000);
+            }
+            if (chPayload.user_limit != null) {
+                chPayload.user_limit = Math.min(Math.max(chPayload.user_limit, 0), 99);
+            }
+
             const response = await taskQueue.execute(
                 async () => {
                     return await RestAPI.post({
@@ -415,6 +492,8 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 remainingChannels.length - chStored
             );
         } catch (e: any) {
+            // Extract the real Discord API error message from the response body
+            let discordMessage: string | null = null;
             const discordBody =
                 e?.body ??
                 (e?.text
@@ -426,12 +505,37 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                           }
                       })()
                     : null);
+            if (discordBody && typeof discordBody === "object") {
+                discordMessage =
+                    discordBody.message ||
+                    (discordBody.errors && discordBody.errors._errors
+                        ? discordBody.errors._errors[0]?.message || null
+                        : null) ||
+                    null;
+            } else if (typeof discordBody === "string") {
+                try {
+                    const parsed = JSON.parse(discordBody);
+                    discordMessage =
+                        parsed?.message ||
+                        (parsed?.errors && parsed.errors._errors
+                            ? parsed.errors._errors[0]?.message || null
+                            : null) ||
+                        null;
+                } catch {
+                    discordMessage = discordBody;
+                }
+            }
+            const finalError = safeString(
+                discordMessage || (e as Error)?.message || String(e)
+            );
             console.error(
                 "[Clonecord] Channel create failed:",
                 ch.name,
                 discordBody,
                 e?.status,
-                e?.code
+                e?.code,
+                "->",
+                finalError
             );
             if (e?.rateLimitExhausted) {
                 channelsFailed += remainingChannels.length - chStored;
@@ -443,7 +547,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
             state.failedItems.push({
                 context: "Channel",
                 name: ch.name,
-                error: (e as Error)?.message || String(e),
+                error: finalError,
                 sourceData: ch,
                 discordBody,
             });

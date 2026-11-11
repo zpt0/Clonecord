@@ -1,5 +1,6 @@
 import { notify } from "./notifications";
 import { state } from "../store";
+import { safeString } from "./helpers";
 
 const DISCORD_ERROR_MAP: Record<number, string> = {
     10003: "Channel not found — it may have been deleted",
@@ -69,11 +70,19 @@ export function translateError(error: any): string {
     if (code && DISCORD_ERROR_MAP[code]) return DISCORD_ERROR_MAP[code];
     if (error?.status && HTTP_STATUS_MAP[error.status]) return HTTP_STATUS_MAP[error.status];
 
-    let message = error?.body?.message || error?.message || "";
+    let message = "";
+    if (error?.body?.message) {
+        message = String(error.body.message);
+    } else if (error?.message) {
+        message = String(error.message);
+    }
     if (!message && error?.text) {
         try {
-            message = JSON.parse(error.text)?.message || "";
-        } catch {}
+            const parsed = JSON.parse(error.text);
+            message = String(parsed?.message || "");
+        } catch {
+            message = String(error.text);
+        }
     }
 
     if (message) {
@@ -81,7 +90,7 @@ export function translateError(error: any): string {
         return message;
     }
 
-    return "Unknown error occurred";
+    return safeString(error) || "Unknown error occurred";
 }
 
 export function handleCloneError(context: string, error: any, itemName?: string): void {
