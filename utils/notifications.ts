@@ -1,26 +1,37 @@
+// ---------------------------------------------------------------------------
+// Clonecord toast / notification system
+//
+// Everything in here is deliberately defensive: a broken toast must never
+// break a running clone. Every public entry point swallows its own errors.
+//
+// Styling is driven by CSS custom properties set on the container:
+//   --cc-toast-opacity   background alpha (0-1)
+//   --cc-accent          accent color (hex)
+//   --cc-accent-rgb      accent color as "r,g,b" for rgba() usage
+//   --cc-toast-slide     entry/exit slide offset (transform)
+//   --cc-toast-origin    transform origin matching the chosen corner
+// and the container carries data-style="glass" | "solid" | "minimal".
+// ---------------------------------------------------------------------------
+
 import { state } from "../store";
 import { messages } from "./messages";
-import { escapeHtml, replaceEmojis, arrayBufferToBase64 } from "./helpers";
+import { escapeHtml } from "./helpers";
 import { NotificationAction, CloneStats, CloneFailure } from "../types";
-import { RestAPI, GuildStore } from "@webpack/common";
-import { findByPropsLazy } from "@webpack";
-import { TaskQueue } from "./TaskQueue";
-import { cloneOnboarding } from "../core/cloneOnboarding";
-import { retryFailedItems } from "../core/retry";
-import { CloneContext } from "../core/types";
-import type { RateLimitStatus } from "./TaskQueue";
 import { settings } from "../settings";
+import { retryFailedItems } from "../core/retry";
+import { RestAPI } from "@webpack/common";
+import type { RateLimitStatus } from "./TaskQueue";
 
-// Clamp helper to keep progress within 0‑100%
-const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+// ---------------------------------------------------------------------------
+// Settings access
+// ---------------------------------------------------------------------------
 
 /**
  * Read a plugin setting defensively.
  *
- * In Vencord, `definePluginSettings` exposes the live values on `settings.store`
- * (there is no `.value` per setting at runtime). Accessing anything else
- * returns undefined, which used to crash with "Cannot read properties of
- * undefined (reading 'value')". This helper always falls back to a default.
+ * In Vencord, `definePluginSettings` exposes the live values on
+ * `settings.store` — there is no `.value` per setting at runtime. This
+ * helper always falls back to a default so it can never crash.
  */
 function toastSetting<T>(key: string, fallback: T): T {
     try {
@@ -31,6 +42,249 @@ function toastSetting<T>(key: string, fallback: T): T {
         return fallback;
     }
 }
+
+const COLOR_PRESETS: Record<string, string> = {
+    blurple: "#5865F2",
+    green: "#57F287",
+    yellow: "#FEE75C",
+    red: "#ED4245",
+    fuchsia: "#EB459E",
+    cyan: "#00A8FC",
+    white: "#FFFFFF",
+};
+
+const DEFAULT_ACCENT = "#5865F2";
+
+/** Accepts "#abc", "abc", "#aabbcc", "aabbcc" and returns "#aabbcc" */
+function normalizeHex(raw: string | undefined | null, fallback: string): string {
+    if (typeof raw !== "string") return fallback;
+    const t = raw.trim().replace(/^#/, "");
+    if (/^[0-9a-fA-F]{3}$/.test(t)) {
+        return "#" + t.split("").map((c) => c + c).join("");
+    }
+    if (/^[0-9a-fA-F]{6}$/.test(t)) {
+        return "#" + t.toLowerCase();
+    }
+    return fallback;
+}
+
+function getAccentColor(): string {
+    const preset = toastSetting<string>("toastAccentColor", "blurple");
+    if (preset === "custom") {
+        return normalizeHex(toastSetting<string>("toastCustomColor", ""), DEFAULT_ACCENT);
+    }
+    return COLOR_PRESETS[preset] ?? DEFAULT_ACCENT;
+}
+
+function hexToRgbParts(hex: string): string {
+    const h = hex.replace("#", "");
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `${r},${g},${b}`;
+}
+
+// ---------------------------------------------------------------------------
+// Toast lifecycle helpers (hover-pause, click-dismiss, stack limit, dedupe)
+// ---------------------------------------------------------------------------
+
+const REMOVAL_MS = 400;
+const DEDUPE_COOLDOWN_MS = 4000;
+const lastShown: Record<string, number> = {};
+
+interface ToastTimer {
+    timeout: ReturnType<typeof setTimeout>;
+    remaining: number;
+    startedAt: number;
+    paused: boolean;
+}
+
+const activeTimers = new Map<string, ToastTimer>();
+
+function scheduleDismiss(id: string, delayMs: number) {
+    if (delayMs <= 0) return;
+    cancelDismiss(id);
+    activeTimers.set(id, {
+        timeout: setTimeout(() => closePill(id), delayMs),
+        remaining: delayMs,
+        startedAt: Date.now(),
+        paused: false,
+    });
+}
+
+function pauseDismiss(id: string) {
+    const timer = activeTimers.get(id);
+    if (!timer || timer.paused) return;
+    clearTimeout(timer.timeout);
+    timer.remaining = Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
+    timer.paused = true;
+}
+
+function resumeDismiss(id: string) {
+    const timer = activeTimers.get(id);
+    if (!timer || !timer.paused) return;
+    timer.timeout = setTimeout(() => closePill(id), timer.remaining);
+    timer.startedAt = Date.now();
+    timer.paused = false;
+}
+
+function cancelDismiss(id: string) {
+    const timer = activeTimers.get(id);
+    if (timer) {
+        clearTimeout(timer.timeout);
+        activeTimers.delete(id);
+    }
+}
+
+export function closePill(id: string) {
+    try {
+        cancelDismiss(id);
+        const pill = document.getElementById(id);
+        if (!pill || pill.classList.contains("hiding")) return;
+        pill.classList.add("hiding");
+        pill.style.pointerEvents = "none";
+        setTimeout(() => pill.remove(), REMOVAL_MS);
+    } catch (e) {
+        console.warn("[Clonecord] closePill failed:", e);
+    }
+}
+
+/** Keep at most `toastMaxStack` sub toasts; the oldest is removed first. */
+function enforceStackLimit(container: HTMLElement) {
+    try {
+        const max = Math.min(Math.max(toastSetting<number>("toastMaxStack", 5), 1), 8);
+        const pills = Array.from(container.querySelectorAll<HTMLElement>(".cloner-sub-pill:not(.hiding)"));
+        while (pills.length > max) {
+            const oldest = pills.shift();
+            if (!oldest) break;
+            oldest.classList.add("hiding");
+            const doomed = oldest;
+            setTimeout(() => doomed.remove(), REMOVAL_MS);
+        }
+    } catch (e) {
+        console.warn("[Clonecord] enforceStackLimit failed:", e);
+    }
+}
+
+/**
+ * Makes a pill interactive:
+ *  - hovering pauses the auto-dismiss countdown
+ *  - optionally clicking anywhere (except buttons) closes it
+ */
+function registerInteractive(pill: HTMLElement, dismissOnClick: boolean) {
+    try {
+        pill.addEventListener("mouseenter", () => pauseDismiss(pill.id));
+        pill.addEventListener("mouseleave", () => resumeDismiss(pill.id));
+        if (dismissOnClick) {
+            pill.addEventListener("click", (e) => {
+                if ((e.target as HTMLElement | null)?.closest?.("button")) return;
+                closePill(pill.id);
+            });
+        }
+    } catch (e) {
+        console.warn("[Clonecord] registerInteractive failed:", e);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Container management
+// ---------------------------------------------------------------------------
+
+export function cleanupContainer() {
+    try {
+        const container = document.getElementById("vc-pill-container");
+        if (!container) return;
+        container.querySelectorAll(".cloner-pill, .cloner-sub-pill").forEach((el) => el.remove());
+        if (container.children.length === 0) container.remove();
+    } catch (e) {
+        console.warn("[Clonecord] cleanupContainer failed:", e);
+    }
+}
+
+function applyContainerPosition(container: HTMLElement): void {
+    const pos = toastSetting<string>("toastPosition", "top-right");
+    const maxW = toastSetting<number>("toastMaxWidth", 400);
+    const opacity = Math.min(Math.max(toastSetting<number>("toastOpacity", 85), 0), 100);
+    const style = toastSetting<string>("toastStyle", "glass");
+    const accent = getAccentColor();
+
+    // Reset all inline positioning
+    container.style.top = "";
+    container.style.bottom = "";
+    container.style.left = "";
+    container.style.right = "";
+    container.style.transform = "";
+    container.style.alignItems = "";
+    container.style.flexDirection = "";
+    container.style.maxWidth = `${maxW}px`;
+    container.dataset.style = ["glass", "solid", "minimal"].includes(style) ? style : "glass";
+
+    let slide = "translateX(40px)";
+    let origin = "top right";
+
+    if (pos === "top-left") {
+        container.style.top = "16px";
+        container.style.left = "16px";
+        container.style.alignItems = "flex-start";
+        container.style.flexDirection = "column-reverse";
+        slide = "translateX(-40px)";
+        origin = "top left";
+    } else if (pos === "bottom-right") {
+        container.style.bottom = "16px";
+        container.style.right = "16px";
+        container.style.alignItems = "flex-end";
+        container.style.flexDirection = "column";
+        origin = "bottom right";
+    } else if (pos === "bottom-left") {
+        container.style.bottom = "16px";
+        container.style.left = "16px";
+        container.style.alignItems = "flex-start";
+        container.style.flexDirection = "column";
+        slide = "translateX(-40px)";
+        origin = "bottom left";
+    } else if (pos === "top-center") {
+        container.style.top = "16px";
+        container.style.left = "50%";
+        container.style.transform = "translateX(-50%)";
+        container.style.alignItems = "center";
+        container.style.flexDirection = "column-reverse";
+        slide = "translateY(-40px)";
+        origin = "top center";
+    } else {
+        // top-right (default)
+        container.style.top = "16px";
+        container.style.right = "16px";
+        container.style.alignItems = "flex-end";
+        container.style.flexDirection = "column-reverse";
+    }
+
+    container.style.setProperty("--cc-toast-opacity", String(opacity / 100));
+    container.style.setProperty("--cc-accent", accent);
+    container.style.setProperty("--cc-accent-rgb", hexToRgbParts(accent));
+    container.style.setProperty("--cc-toast-slide", slide);
+    container.style.setProperty("--cc-toast-origin", origin);
+}
+
+export function getPillContainer(): HTMLElement {
+    const existing = document.getElementById("vc-pill-container");
+    if (existing) {
+        state.pillContainer = existing;
+        applyContainerPosition(existing);
+        return existing;
+    }
+    if (!state.pillContainer || !document.body.contains(state.pillContainer)) {
+        state.pillContainer = document.createElement("div");
+        state.pillContainer.id = "vc-pill-container";
+        state.pillContainer.className = "vc-pill-container";
+        document.body.appendChild(state.pillContainer);
+    }
+    applyContainerPosition(state.pillContainer);
+    return state.pillContainer;
+}
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
 
 export function formatElapsed(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);
@@ -51,6 +305,104 @@ function formatEta(ms: number): string {
     return `~${hours}h ${mins % 60}m left`;
 }
 
+// ---------------------------------------------------------------------------
+// Sub toasts (notify)
+// ---------------------------------------------------------------------------
+
+const TOAST_ICONS: Record<string, string> = {
+    success:
+        '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+    error:
+        '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    info:
+        '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 8h.01"/><path d="M12 11v5"/></svg>',
+};
+
+export function notify(
+    title: string,
+    body: string,
+    type: "success" | "info" | "error" = "info",
+    duration = 0, // 0 = use settings default
+    actions: NotificationAction[] = []
+): string {
+    try {
+        const container = getPillContainer();
+
+        const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+        // dedupe identical non-interactive toasts shown a moment ago
+        const dedupeKey = `${type}:${title}:${body}`;
+        if (
+            actions.length === 0 &&
+            lastShown[dedupeKey] &&
+            Date.now() - lastShown[dedupeKey] < DEDUPE_COOLDOWN_MS
+        ) {
+            return "";
+        }
+        lastShown[dedupeKey] = Date.now();
+
+        const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
+        const defaultDelay = toastSetting<number>("toastDismissDelayMs", 8000);
+        const actualDuration = autoDismiss
+            ? Math.max(duration || defaultDelay, 1000)
+            : duration === 0
+              ? 0
+              : duration;
+
+        const notification = document.createElement("div");
+        notification.className = `cloner-sub-pill ${type}`;
+        notification.id = notificationId;
+
+        const actionButtons = actions
+            .map(
+                (action, index) =>
+                    `<button id="btn-${notificationId}-${index}" class="cloner-toast-btn ${action.type || "default"}">${escapeHtml(action.label)}</button>`
+            )
+            .join("");
+
+        notification.innerHTML =
+            `<div class="cloner-sub-pill-icon ${type}">${TOAST_ICONS[type] ?? TOAST_ICONS.info}</div>` +
+            `<div class="cloner-sub-pill-content">` +
+            `<div class="cloner-sub-pill-title">${escapeHtml(title)}</div>` +
+            (body ? `<div class="cloner-sub-pill-body">${escapeHtml(body)}</div>` : "") +
+            (actions.length > 0 ? `<div class="cloner-toast-actions">${actionButtons}</div>` : "") +
+            `</div>` +
+            `<button class="cloner-toast-close" title="Dismiss">&times;</button>`;
+
+        container.appendChild(notification);
+        enforceStackLimit(container);
+
+        notification.querySelector(".cloner-toast-close")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+            closePill(notificationId);
+        });
+
+        actions.forEach((action, index) => {
+            const btn = document.getElementById(`btn-${notificationId}-${index}`);
+            btn?.addEventListener("click", (e) => {
+                e.stopPropagation();
+                try {
+                    action.onClick(notificationId);
+                } catch (err) {
+                    console.warn("[Clonecord] toast action failed:", err);
+                }
+            });
+        });
+
+        registerInteractive(notification, actions.length === 0);
+        scheduleDismiss(notificationId, actualDuration);
+
+        return notificationId;
+    } catch (e) {
+        console.warn("[Clonecord] notify failed:", e);
+        return "";
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Main progress pill
+// ---------------------------------------------------------------------------
+
 function startProgressTimer(notificationId: string) {
     if (state.timerInterval) clearInterval(state.timerInterval);
     state.cloneStartTime = Date.now();
@@ -61,178 +413,13 @@ function startProgressTimer(notificationId: string) {
         const formatted = formatElapsed(elapsed);
         const pill = document.getElementById(notificationId);
         if (!pill || pill.classList.contains("completed")) {
-            clearInterval(state.timerInterval!);
+            if (state.timerInterval) clearInterval(state.timerInterval);
             state.timerInterval = null;
             return;
         }
         const timerCompact = pill.querySelector(".cloner-pill-timer");
         if (timerCompact) timerCompact.textContent = formatted;
     }, 1000);
-}
-
-export function cleanupContainer() {
-    const container = document.getElementById("vc-pill-container");
-    if (!container) return;
-    container.querySelectorAll(".cloner-pill, .cloner-sub-pill").forEach((el) => el.remove());
-    if (container.children.length === 0) container.remove();
-}
-
-export function getPillContainer(): HTMLElement {
-    const existing = document.getElementById("vc-pill-container");
-    if (existing) {
-        state.pillContainer = existing;
-        applyContainerPosition(existing);
-        return existing;
-    }
-    if (!state.pillContainer || !document.body.contains(state.pillContainer)) {
-        state.pillContainer = document.createElement("div");
-        state.pillContainer.id = "vc-pill-container";
-        state.pillContainer.className = "vc-pill-container";
-        document.body.appendChild(state.pillContainer);
-    }
-    applyContainerPosition(state.pillContainer);
-    return state.pillContainer;
-}
-
-function applyContainerPosition(container: HTMLElement): void {
-    const pos = toastSetting<string>("toastPosition", "top-right");
-    const maxW = toastSetting<number>("toastMaxWidth", 400);
-    const opacity = toastSetting<number>("toastOpacity", 85);
-
-    // Reset all positioning
-    container.style.top = "";
-    container.style.bottom = "";
-    container.style.left = "";
-    container.style.right = "";
-    container.style.transform = "";
-    container.style.alignItems = "";
-    container.style.flexDirection = "";
-    container.style.maxWidth = `${maxW}px`;
-
-    let slide = "translateX(40px)";
-    let origin = "top right";
-
-    if (pos === "top-right") {
-        container.style.top = "16px";
-        container.style.right = "16px";
-        container.style.alignItems = "flex-end";
-        container.style.flexDirection = "column-reverse";
-    } else if (pos === "top-left") {
-        container.style.top = "16px";
-        container.style.left = "16px";
-        container.style.alignItems = "flex-start";
-        container.style.flexDirection = "column-reverse";
-        slide = "translateX(-40px)";
-        origin = "top left";
-    } else if (pos === "bottom-right") {
-        container.style.bottom = "16px";
-        container.style.right = "16px";
-        container.style.alignItems = "flex-end";
-        container.style.flexDirection = "column";
-        origin = "bottom right";
-    } else if (pos === "bottom-left") {
-        container.style.bottom = "16px";
-        container.style.left = "16px";
-        container.style.alignItems = "flex-start";
-        container.style.flexDirection = "column";
-        slide = "translateX(-40px)";
-        origin = "bottom left";
-    } else {
-        // top-center
-        container.style.top = "16px";
-        container.style.left = "50%";
-        container.style.transform = "translateX(-50%)";
-        container.style.alignItems = "center";
-        container.style.flexDirection = "column-reverse";
-        slide = "translateY(-40px)";
-        origin = "top center";
-    }
-
-    // pills inherit these so entry/exit animations match the chosen corner
-    container.style.setProperty("--cc-toast-slide", slide);
-    container.style.setProperty("--cc-toast-origin", origin);
-    container.style.setProperty("--cc-toast-opacity", String(opacity / 100));
-}
-
-export function closePill(id: string) {
-    const pill = document.getElementById(id);
-    if (pill && !pill.classList.contains("hiding")) {
-        pill.classList.add("hiding");
-        setTimeout(() => pill.remove(), 900);
-    }
-}
-
-export function notify(
-    title: string,
-    body: string,
-    type: "success" | "info" | "error" = "info",
-    duration = 0, // 0 = use settings default
-    actions: NotificationAction[] = []
-): string {
-    const container = getPillContainer();
-    const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
-    const defaultDelay = toastSetting<number>("toastDismissDelayMs", 8000);
-    const actualDuration = autoDismiss ? Math.max(duration || defaultDelay, 1000) : duration === 0 ? 0 : duration;
-    const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-
-    // Rate‑limit per‑type to avoid spam
-    const now = Date.now();
-    const key = type;
-    const COOLDOWN_MS = 5000;
-    if (lastShown[key] && now - lastShown[key] < COOLDOWN_MS) {
-        // skip showing this notification
-    } else {
-        if (actualDuration > 0) {
-            const existingNotifications = container.querySelectorAll(".cloner-sub-pill:not(.hiding)");
-            if (existingNotifications.length > 4) {
-                const oldest = existingNotifications[0];
-                oldest.classList.add("hiding");
-                setTimeout(() => oldest.remove(), 500);
-            }
-        }
-        lastShown[key] = now;
-    }
-
-    const notification = document.createElement("div");
-    notification.className = `cloner-sub-pill ${type}`;
-    notification.id = notificationId;
-
-    const icons: Record<string, string> = { success: "\u2713", error: "\u2715", info: "i" };
-
-    const actionButtons = actions
-        .map((action, index) => {
-            const safeId = `btn-${notificationId}-${index}`;
-            return `<button id="${safeId}" class="cloner-btn ${action.type || "default"}" style="padding: 4px 10px; font-size: 11px;">${escapeHtml(action.label)}</button>`;
-        })
-        .join("");
-
-    notification.innerHTML = `
-        <div class="cloner-sub-pill-icon ${type}">${icons[type]}</div>
-        <div class="cloner-sub-pill-content">
-            <div class="cloner-sub-pill-title">${escapeHtml(title)}</div>
-            ${body ? `<div class="cloner-sub-pill-body">${escapeHtml(body)}</div>` : ""}
-            ${actions.length > 0 ? `<div style="display:flex; gap: 6px; margin-top: 6px;">${actionButtons}</div>` : ""}
-        </div>
-    `;
-
-    container.appendChild(notification);
-
-    actions.forEach((action, index) => {
-        const safeId = `btn-${notificationId}-${index}`;
-        const btn = document.getElementById(safeId);
-        if (btn) {
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                action.onClick(notificationId);
-            });
-        }
-    });
-
-    if (actualDuration > 0) {
-        setTimeout(() => closePill(notificationId), actualDuration);
-    }
-
-    return notificationId;
 }
 
 export function createMainProgressNotification(
@@ -242,100 +429,113 @@ export function createMainProgressNotification(
     isExistingServer: boolean = false,
     showSkipRoles: boolean = true
 ): string {
-    state.skipRolesCallback = onSkipRoles || null;
-    const container = getPillContainer();
     const notificationId = `cloner-main-${Date.now()}`;
 
-    const cancelBtnText = isExistingServer
-        ? messages.buttons.cancelExisting
-        : messages.buttons.cancelNew;
-    const skipRolesBtnHtml = showSkipRoles
-        ? `<button class="cloner-btn cloner-skip-roles-btn" style="display:none">${messages.buttons.skipRoles}</button>`
-        : "";
+    try {
+        state.skipRolesCallback = onSkipRoles || null;
+        const container = getPillContainer();
 
-    const pill = document.createElement("div");
-    pill.className = "cloner-pill";
-    pill.id = notificationId;
+        const cancelBtnText = isExistingServer
+            ? messages.buttons.cancelExisting
+            : messages.buttons.cancelNew;
+        const skipRolesBtnHtml = showSkipRoles
+            ? `<button class="cloner-toast-btn cloner-skip-roles-btn" style="display:none">${messages.buttons.skipRoles}</button>`
+            : "";
+        const timerHtml = toastSetting<boolean>("toastShowTimer", true)
+            ? `<span class="cloner-pill-timer">0s</span>`
+            : "";
 
-    pill.innerHTML = `
-        <div class="cloner-pill-compact">
-            <div class="cloner-pill-spinner"></div>
-            <span class="cloner-pill-title">${escapeHtml(title)}</span>
-            <span class="cloner-pill-timer">0s</span>
-            <span class="cloner-pill-percent">0%</span>
-        </div>
-        <div class="cloner-pill-expanded">
-            <div class="cloner-pill-expanded-inner">
-                <div class="cloner-pill-body">${escapeHtml(initialBody)}</div>
-                <div class="cloner-pill-progress-bar">
-                    <div class="cloner-pill-progress-fill"></div>
-                </div>
-                <div class="cloner-pill-actions">
-                    ${skipRolesBtnHtml}
-                    <button class="${isExistingServer ? "cloner-btn" : "cloner-btn danger"} cloner-cancel-btn">${cancelBtnText}</button>
+        const pill = document.createElement("div");
+        pill.className = "cloner-pill";
+        pill.id = notificationId;
+
+        pill.innerHTML = `
+            <div class="cloner-pill-compact">
+                <div class="cloner-pill-spinner"></div>
+                <span class="cloner-pill-title">${escapeHtml(title)}</span>
+                ${timerHtml}
+                <span class="cloner-pill-percent">0%</span>
+            </div>
+            <div class="cloner-pill-expanded">
+                <div class="cloner-pill-expanded-inner">
+                    <div class="cloner-pill-body">${escapeHtml(initialBody)}</div>
+                    <div class="cloner-pill-progress-bar">
+                        <div class="cloner-pill-progress-fill"></div>
+                    </div>
+                    <div class="cloner-pill-actions">
+                        ${skipRolesBtnHtml}
+                        <button class="cloner-toast-btn ${isExistingServer ? "default" : "danger"} cloner-cancel-btn">${cancelBtnText}</button>
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
 
-    container.insertBefore(pill, container.firstChild);
+        container.insertBefore(pill, container.firstChild);
+        registerInteractive(pill, false);
 
-    const skipRolesBtn = pill.querySelector(".cloner-skip-roles-btn");
-    if (skipRolesBtn) {
-        skipRolesBtn.addEventListener("click", () => {
-            if (state.skipRolesCallback) state.skipRolesCallback();
-            (skipRolesBtn as HTMLButtonElement).disabled = true;
-            (skipRolesBtn as HTMLButtonElement).textContent = "Skipped";
-        });
-    }
-
-    const cancelBtn = pill.querySelector(".cloner-cancel-btn");
-    if (cancelBtn) {
-        cancelBtn.addEventListener("click", async () => {
-            state.isCloning = false;
-            if (state.abortController) {
-                state.abortController.abort();
-                state.abortController = null;
-            }
-            pill.classList.add("completed");
-            if (!isExistingServer && state.currentCloneGuildId) {
-                try {
-                    await RestAPI.del({ url: `/guilds/${state.currentCloneGuildId}` });
-                    completeMainProgress(notificationId, "Server deleted", false, "Cancelled");
-                } catch {
-                    completeMainProgress(
-                        notificationId,
-                        "Could not delete server",
-                        false,
-                        "Cancelled"
-                    );
+        pill.querySelector(".cloner-skip-roles-btn")?.addEventListener("click", () => {
+            try {
+                if (state.skipRolesCallback) state.skipRolesCallback();
+                const btn = pill.querySelector<HTMLButtonElement>(".cloner-skip-roles-btn");
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = "Skipped";
                 }
-                state.currentCloneGuildId = null;
-            } else {
-                completeMainProgress(notificationId, "Clone Cancelled", false, "Cancelled");
+            } catch (e) {
+                console.warn("[Clonecord] skip roles failed:", e);
             }
         });
-    }
 
-    startProgressTimer(notificationId);
+        pill.querySelector(".cloner-cancel-btn")?.addEventListener("click", async () => {
+            try {
+                state.isCloning = false;
+                if (state.abortController) {
+                    state.abortController.abort();
+                    state.abortController = null;
+                }
+                pill.classList.add("completed");
+                if (!isExistingServer && state.currentCloneGuildId) {
+                    try {
+                        await RestAPI.del({ url: `/guilds/${state.currentCloneGuildId}` });
+                        completeMainProgress(notificationId, "Server deleted", false, "Cancelled");
+                    } catch {
+                        completeMainProgress(notificationId, "Could not delete server", false, "Cancelled");
+                    }
+                    state.currentCloneGuildId = null;
+                } else {
+                    completeMainProgress(notificationId, "Clone Cancelled", false, "Cancelled");
+                }
+            } catch (e) {
+                console.warn("[Clonecord] cancel failed:", e);
+            }
+        });
+
+        startProgressTimer(notificationId);
+    } catch (e) {
+        console.warn("[Clonecord] createMainProgressNotification failed:", e);
+    }
 
     return notificationId;
 }
 
 export function updateMainProgress(id: string, body: string, percent: number) {
-    const safePercent = isNaN(percent) ? 0 : Math.min(100, Math.max(0, Math.round(percent)));
-    const pill = document.getElementById(id);
-    if (!pill || pill.classList.contains("completed")) return;
+    try {
+        const safePercent = isNaN(percent) ? 0 : Math.min(100, Math.max(0, Math.round(percent)));
+        const pill = document.getElementById(id);
+        if (!pill || pill.classList.contains("completed")) return;
 
-    const bodyEl = pill.querySelector(".cloner-pill-body");
-    if (bodyEl) bodyEl.textContent = body;
+        const bodyEl = pill.querySelector(".cloner-pill-body");
+        if (bodyEl) bodyEl.textContent = body;
 
-    const percentEl = pill.querySelector(".cloner-pill-percent");
-    if (percentEl) percentEl.textContent = `${safePercent}%`;
+        const percentEl = pill.querySelector(".cloner-pill-percent");
+        if (percentEl) percentEl.textContent = `${safePercent}%`;
 
-    const progressBar = pill.querySelector(".cloner-pill-progress-fill") as HTMLElement;
-    if (progressBar) {
-        progressBar.style.transform = `scaleX(${safePercent / 100})`;
+        const progressBar = pill.querySelector<HTMLElement>(".cloner-pill-progress-fill");
+        if (progressBar) {
+            progressBar.style.transform = `scaleX(${safePercent / 100})`;
+        }
+    } catch (e) {
+        console.warn("[Clonecord] updateMainProgress failed:", e);
     }
 }
 
@@ -345,47 +545,53 @@ export function completeMainProgress(
     success: boolean,
     customPercentText?: string
 ) {
-    const pill = document.getElementById(id);
-    if (!pill) return;
+    try {
+        const pill = document.getElementById(id);
+        if (!pill) return;
 
-    if (state.timerInterval) {
-        clearInterval(state.timerInterval);
-        state.timerInterval = null;
-    }
-    const elapsedText = state.cloneStartTime
-        ? ` \u2022 ${formatElapsed(Date.now() - state.cloneStartTime)}`
-        : "";
-    state.cloneStartTime = null;
+        if (state.timerInterval) {
+            clearInterval(state.timerInterval);
+            state.timerInterval = null;
+        }
+        const elapsedText = state.cloneStartTime
+            ? ` \u2022 ${formatElapsed(Date.now() - state.cloneStartTime)}`
+            : "";
+        state.cloneStartTime = null;
 
-    pill.classList.add("completed");
+        pill.classList.add("completed");
 
-    const titleEl = pill.querySelector(".cloner-pill-title");
-    if (titleEl) titleEl.textContent = body;
+        const titleEl = pill.querySelector(".cloner-pill-title");
+        if (titleEl) titleEl.textContent = body;
 
-    const timerCompact = pill.querySelector(".cloner-pill-timer") as HTMLElement;
-    if (timerCompact) timerCompact.style.display = "none";
+        const timerCompact = pill.querySelector<HTMLElement>(".cloner-pill-timer");
+        if (timerCompact) timerCompact.style.display = "none";
 
-    const percentEl = pill.querySelector(".cloner-pill-percent");
-    if (percentEl)
-        percentEl.textContent = customPercentText
-            ? customPercentText
-            : success
-                ? `Done${elapsedText}`
-                : "Error";
+        const percentEl = pill.querySelector(".cloner-pill-percent");
+        if (percentEl)
+            percentEl.textContent = customPercentText
+                ? customPercentText
+                : success
+                  ? `Done${elapsedText}`
+                  : "Error";
 
-    const progressBar = pill.querySelector(".cloner-pill-progress-fill") as HTMLElement;
-    if (progressBar) {
-        progressBar.style.transform = "scaleX(1)";
-    }
+        const progressBar = pill.querySelector<HTMLElement>(".cloner-pill-progress-fill");
+        if (progressBar) {
+            progressBar.style.transform = "scaleX(1)";
+        }
 
-    pill.classList.add(success ? "success" : "error");
+        pill.classList.add(success ? "success" : "error");
 
-    const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
-    const delay = autoDismiss ? toastSetting<number>("toastDismissDelayMs", 8000) : 0;
-    if (delay > 0) {
-        setTimeout(() => closePill(id), delay);
+        const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
+        const delay = autoDismiss ? toastSetting<number>("toastDismissDelayMs", 8000) : 0;
+        scheduleDismiss(id, delay);
+    } catch (e) {
+        console.warn("[Clonecord] completeMainProgress failed:", e);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Progress reporting (used by the clone pipeline)
+// ---------------------------------------------------------------------------
 
 export function updateProgress(percent: number, message?: string) {
     if (state.mainProgressNotificationId) {
@@ -405,28 +611,32 @@ export interface ThrottleProgressInfo {
 }
 
 export function updateThrottledProgress(info: ThrottleProgressInfo) {
-    if (!state.mainProgressNotificationId) return;
-    const { status, percent, remainingItems } = info;
-    const pill = document.getElementById(state.mainProgressNotificationId);
-    if (!pill || pill.classList.contains("completed")) return;
+    try {
+        if (!state.mainProgressNotificationId) return;
+        const { status, percent, remainingItems } = info;
+        const pill = document.getElementById(state.mainProgressNotificationId);
+        if (!pill || pill.classList.contains("completed")) return;
 
-    const bodyEl = pill.querySelector(".cloner-pill-body");
-    if (status.throttled) {
-        const msg =
-            `Rate limited — continuing in ~${status.throttledSecondsLeft}s` +
-            (status.currentConcurrency < status.maxConcurrency
-                ? ` (speed reduced ${status.maxConcurrency} → ${status.currentConcurrency})`
-                : "");
-        if (bodyEl) bodyEl.textContent = msg;
-    } else if (status.avgRequestMs > 0 && remainingItems > 0 && percent < 100) {
-        const etaMs = (remainingItems * status.avgRequestMs) / Math.max(1, status.currentConcurrency);
-        const eta = formatEta(etaMs);
-        if (eta) {
-            const percentEl = pill.querySelector(".cloner-pill-percent");
-            if (percentEl && !percentEl.textContent?.includes("left")) {
-                percentEl.textContent = `${Math.min(100, Math.max(0, Math.round(percent)))}% • ${eta}`;
+        const bodyEl = pill.querySelector(".cloner-pill-body");
+        if (status.throttled) {
+            const msg =
+                `Rate limited — continuing in ~${status.throttledSecondsLeft}s` +
+                (status.currentConcurrency < status.maxConcurrency
+                    ? ` (speed reduced ${status.maxConcurrency} → ${status.currentConcurrency})`
+                    : "");
+            if (bodyEl) bodyEl.textContent = msg;
+        } else if (status.avgRequestMs > 0 && remainingItems > 0 && percent < 100) {
+            const etaMs = (remainingItems * status.avgRequestMs) / Math.max(1, status.currentConcurrency);
+            const eta = formatEta(etaMs);
+            if (eta) {
+                const percentEl = pill.querySelector(".cloner-pill-percent");
+                if (percentEl && !percentEl.textContent?.includes("left")) {
+                    percentEl.textContent = `${Math.min(100, Math.max(0, Math.round(percent)))}% • ${eta}`;
+                }
             }
         }
+    } catch (e) {
+        console.warn("[Clonecord] updateThrottledProgress failed:", e);
     }
 }
 
@@ -449,46 +659,51 @@ export function updateWithTime(msg: string, percent: number, remainingItems?: nu
     updateMainProgress(state.mainProgressNotificationId, msg || `Progress: ${Math.round(safePercent)}%`, safePercent);
 }
 
+// ---------------------------------------------------------------------------
+// Clone summary
+// ---------------------------------------------------------------------------
+
 export function showCloneSummary(
     stats: CloneStats,
     failures: CloneFailure[],
     gaps: { title: string; detail: string; howToFix: string }[] = []
 ): void {
-    const hasFailures = failures.length > 0;
-    const container = getPillContainer();
+    try {
+        const hasFailures = failures.length > 0;
+        const container = getPillContainer();
 
-    const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    const pill = document.createElement("div");
-    pill.className = `cloner-sub-pill cloner-summary ${hasFailures ? "error" : "success"}`;
-    pill.id = notificationId;
+        const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        const pill = document.createElement("div");
+        pill.className = `cloner-sub-pill cloner-summary ${hasFailures ? "error" : "success"}`;
+        pill.id = notificationId;
 
-    // stat rows — only show what was actually cloned
-    const statRows: { label: string; value: number | boolean }[] = [
-        { label: "Channels", value: stats.channelsCloned },
-        { label: "Categories", value: stats.categoriesCloned },
-        { label: "Roles", value: stats.rolesCloned },
-        { label: "Emojis", value: stats.emojisCloned },
-        { label: "Stickers", value: stats.stickersCloned },
-        { label: "Sounds", value: stats.soundboardCloned },
-    ].filter((r) => typeof r.value === "number" && r.value > 0);
+        // stat rows — only show what was actually cloned
+        const statRows: { label: string; value: number | boolean }[] = [
+            { label: "Channels", value: stats.channelsCloned },
+            { label: "Categories", value: stats.categoriesCloned },
+            { label: "Roles", value: stats.rolesCloned },
+            { label: "Emojis", value: stats.emojisCloned },
+            { label: "Stickers", value: stats.stickersCloned },
+            { label: "Sounds", value: stats.soundboardCloned },
+        ].filter((r) => typeof r.value === "number" && r.value > 0);
 
-    const statsHtml =
-        statRows.length > 0
-            ? `<div class="cloner-summary-stats">` +
-              statRows
-                  .map(
-                      (r) =>
-                          `<span class="cloner-summary-stat"><span class="cloner-summary-stat-num">${r.value}</span> ${escapeHtml(r.label)}</span>`
-                  )
-                  .join("") +
-              (stats.onboardingCloned
-                  ? `<span class="cloner-summary-stat cloner-summary-stat-tag">Onboarding \u2713</span>`
-                  : "") +
-              `</div>`
-            : `<div class="cloner-summary-empty">Nothing was cloned</div>`;
+        const statsHtml =
+            statRows.length > 0
+                ? `<div class="cloner-summary-stats">` +
+                  statRows
+                      .map(
+                          (r) =>
+                              `<span class="cloner-summary-stat"><span class="cloner-summary-stat-num">${r.value}</span> ${escapeHtml(r.label)}</span>`
+                      )
+                      .join("") +
+                  (stats.onboardingCloned
+                      ? `<span class="cloner-summary-stat cloner-summary-stat-tag">Onboarding \u2713</span>`
+                      : "") +
+                  `</div>`
+                : `<div class="cloner-summary-empty">Nothing was cloned</div>`;
 
-    const failuresHtml = hasFailures
-        ? `<div class="cloner-summary-failures">` +
+        const failuresHtml = hasFailures
+            ? `<div class="cloner-summary-failures">` +
               `<div class="cloner-summary-section-label">Failed (${failures.length})</div>` +
               failures
                   .slice(0, 5)
@@ -496,7 +711,9 @@ export function showCloneSummary(
                       (f) =>
                           `<div class="cloner-summary-failure-row"><span class="cloner-summary-failure-ctx">${escapeHtml(
                               f.context
-                          )}</span><span class="cloner-summary-failure-name">${escapeHtml(f.name)}</span><span class="cloner-summary-failure-err">${escapeHtml(
+                          )}</span><span class="cloner-summary-failure-name">${escapeHtml(
+                              f.name
+                          )}</span><span class="cloner-summary-failure-err">${escapeHtml(
                               f.error
                           )}</span></div>`
                   )
@@ -505,95 +722,97 @@ export function showCloneSummary(
                   ? `<div class="cloner-summary-failure-more">+${failures.length - 5} more</div>`
                   : "") +
               `</div>`
-        : "";
+            : "";
 
-    const titleText = hasFailures ? messages.summary.errors : messages.summary.success;
-    const iconHtml = `<div class="cloner-sub-pill-icon ${hasFailures ? "error" : "success"}>${hasFailures ? "\u2715" : "\u2713"}</div>`;
+        const titleText = hasFailures ? messages.summary.errors : messages.summary.success;
+        const iconHtml = `<div class="cloner-sub-pill-icon ${hasFailures ? "error" : "success"}">${hasFailures ? TOAST_ICONS.error : TOAST_ICONS.success}</div>`;
 
-    // action buttons
-    const btnIds = {
-        retry: `btn-retry-${notificationId}`,
-        gaps: `btn-gaps-${notificationId}`,
-        close: `btn-close-${notificationId}`,
-    };
+        // action buttons
+        const btnIds = {
+            retry: `btn-retry-${notificationId}`,
+            gaps: `btn-gaps-${notificationId}`,
+            close: `btn-close-${notificationId}`,
+        };
 
-    const actionsHtml =
-        `<div class="cloner-summary-actions">` +
-        (hasFailures
-            ? `<button id="${btnIds.retry}" class="cloner-btn">Retry failed</button>`
-            : "") +
-        (gaps.length > 0
-            ? `<button id="${btnIds.gaps}" class="cloner-btn">Not cloned (${gaps.length})</button>`
-            : "") +
-        `<button id="${btnIds.close}" class="cloner-btn">Dismiss</button>` +
-        `</div>`;
+        const actionsHtml =
+            `<div class="cloner-summary-actions">` +
+            (hasFailures
+                ? `<button id="${btnIds.retry}" class="cloner-toast-btn success">Retry failed</button>`
+                : "") +
+            (gaps.length > 0
+                ? `<button id="${btnIds.gaps}" class="cloner-toast-btn default">Not cloned (${gaps.length})</button>`
+                : "") +
+            `<button id="${btnIds.close}" class="cloner-toast-btn default">Dismiss</button>` +
+            `</div>`;
 
-    pill.innerHTML =
-        iconHtml +
-        `<div class="cloner-sub-pill-content">` +
-        `<div class="cloner-sub-pill-title">${escapeHtml(titleText)}</div>` +
-        statsHtml +
-        failuresHtml +
-        actionsHtml +
-        `</div>`;
+        pill.innerHTML =
+            iconHtml +
+            `<div class="cloner-sub-pill-content">` +
+            `<div class="cloner-sub-pill-title">${escapeHtml(titleText)}</div>` +
+            statsHtml +
+            failuresHtml +
+            actionsHtml +
+            `</div>` +
+            `<button class="cloner-toast-close" title="Dismiss">&times;</button>`;
 
-    container.appendChild(pill);
+        container.appendChild(pill);
+        enforceStackLimit(container);
 
-    document
-        .getElementById(btnIds.close)
-        ?.addEventListener("click", () => closePill(notificationId));
+        pill.querySelector(".cloner-toast-close")?.addEventListener("click", () => closePill(notificationId));
+        document
+            .getElementById(btnIds.close)
+            ?.addEventListener("click", () => closePill(notificationId));
 
-    if (hasFailures) {
-        document.getElementById(btnIds.retry)?.addEventListener("click", async () => {
-            closePill(notificationId);
-            notify("Retrying", "Re-attempting failed items...", "info", 5000);
-            try {
-                const result = await retryFailedItems(failures);
+        if (hasFailures) {
+            document.getElementById(btnIds.retry)?.addEventListener("click", async () => {
+                closePill(notificationId);
+                notify("Retrying", "Re-attempting failed items...", "info", 5000);
+                try {
+                    const result = await retryFailedItems(failures);
 
-                if (result.fatal) {
-                    notify("Retry not possible", result.fatal, "error", 0, [
+                    if (result.fatal) {
+                        notify("Retry not possible", result.fatal, "error", 0, [
+                            { label: "Dismiss", type: "default", onClick: (id) => closePill(id) },
+                        ]);
+                        return;
+                    }
+
+                    if (result.failed.length === 0 && result.skipped.length === 0) {
+                        notify(
+                            "Retry complete",
+                            `All ${result.succeeded.length} item(s) cloned successfully.`,
+                            "success",
+                            8000
+                        );
+                        return;
+                    }
+
+                    // some items are still broken — show an updated summary
+                    notify(
+                        "Retry finished",
+                        `${result.succeeded.length} succeeded, ${result.failed.length} still failing${
+                            result.skipped.length ? `, ${result.skipped.length} skipped` : ""
+                        }.`,
+                        result.failed.length ? "error" : "info",
+                        10000
+                    );
+                    if (state.cloneStats) {
+                        showCloneSummary(state.cloneStats, result.failed);
+                    }
+                } catch (e) {
+                    notify("Retry failed", e instanceof Error ? e.message : String(e), "error", 0, [
                         { label: "Dismiss", type: "default", onClick: (id) => closePill(id) },
                     ]);
-                    return;
                 }
+            });
+        }
 
-                if (result.failed.length === 0 && result.skipped.length === 0) {
-                    notify(
-                        "Retry complete",
-                        `All ${result.succeeded.length} item(s) cloned successfully.`,
-                        "success",
-                        8000
-                    );
-                    return;
-                }
-
-                // some items are still broken — show an updated summary
-                notify(
-                    "Retry finished",
-                    `${result.succeeded.length} succeeded, ${result.failed.length} still failing${
-                        result.skipped.length ? `, ${result.skipped.length} skipped` : ""
-                    }.`,
-                    result.failed.length ? "error" : "info",
-                    10000
-                );
-                if (state.cloneStats) {
-                    showCloneSummary(state.cloneStats, result.failed);
-                }
-            } catch (e) {
-                notify("Retry failed", e instanceof Error ? e.message : String(e), "error", 0, [
-                    { label: "Dismiss", type: "default", onClick: (id) => closePill(id) },
-                ]);
-            }
-        });
-    }
-
-    if (gaps.length > 0) {
-        document.getElementById(btnIds.gaps)?.addEventListener("click", () => {
-            closePill(notificationId);
-            const gapPillId = notify("Not transferred", "", "info", 0);
-            const gapPill = document.getElementById(gapPillId);
-            if (gapPill) {
-                const content = gapPill.querySelector(".cloner-sub-pill-content");
+        if (gaps.length > 0) {
+            document.getElementById(btnIds.gaps)?.addEventListener("click", () => {
+                closePill(notificationId);
+                const gapPillId = notify("Not transferred", "", "info", 0);
+                const gapPill = document.getElementById(gapPillId);
+                const content = gapPill?.querySelector(".cloner-sub-pill-content");
                 if (content) {
                     const listHtml =
                         `<div class="cloner-summary-failures">` +
@@ -608,30 +827,23 @@ export function showCloneSummary(
                             )
                             .join("") +
                         `</div>` +
-                        `<div class="cloner-summary-actions"><button class="cloner-btn cloner-gap-dismiss">Dismiss</button></div>`;
+                        `<div class="cloner-summary-actions"><button class="cloner-toast-btn default cloner-gap-dismiss">Dismiss</button></div>`;
                     content.insertAdjacentHTML("beforeend", listHtml);
                     gapPill
-                        .querySelector(".cloner-gap-dismiss")
+                        ?.querySelector(".cloner-gap-dismiss")
                         ?.addEventListener("click", () => closePill(gapPillId));
                 }
-            }
-        });
-    }
+            });
+        }
 
-    // auto-dismiss so the summary is temporary; failures stay a bit longer so the user can retry
-    const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
-    const baseDelay = toastSetting<number>("toastDismissDelayMs", 8000);
-    const summaryDelay = autoDismiss ? (hasFailures ? Math.max(baseDelay, 15000) : baseDelay) : 0;
-    if (summaryDelay > 0) {
-        setTimeout(() => closePill(notificationId), summaryDelay);
+        registerInteractive(pill, false);
+
+        // auto-dismiss so the summary is temporary; failures stay longer so the user can retry
+        const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
+        const baseDelay = toastSetting<number>("toastDismissDelayMs", 8000);
+        const summaryDelay = autoDismiss ? (hasFailures ? Math.max(baseDelay, 15000) : baseDelay) : 0;
+        scheduleDismiss(notificationId, summaryDelay);
+    } catch (e) {
+        console.warn("[Clonecord] showCloneSummary failed:", e);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Helper functions (unchanged)
-// ---------------------------------------------------------------------------
-
-const AuthStore = findByPropsLazy("getToken");
-
-const lastShown: Record<string, number> = {};
-const COOLDOWN_MS = 5000; // 5 seconds

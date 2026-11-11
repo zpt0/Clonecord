@@ -142,7 +142,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                         estimateChannels.push(normalizeChannel(localCh));
                     }
                 }
-            } catch (e) {
+            } catch {
                 estimateChannels = extractChannels(sourceGuild.id, true)
                     .filter((ch: any) => ch?.name && ch.name !== "___hidden___")
                     .map(normalizeChannel);

@@ -93,7 +93,7 @@ export async function clearCheckpoint(): Promise<void> {
                 await deleteDataStore(CHECKPOINT_KEY).catch(() => {});
             }
         }, 60000);
-    } catch (e) {
+    } catch {
         const deleteDataStore = typeof DataStore.delete === "function" ? DataStore.delete : null;
         if (deleteDataStore) {
             await deleteDataStore(CHECKPOINT_KEY).catch(() => {});

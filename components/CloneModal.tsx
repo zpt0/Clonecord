@@ -525,16 +525,6 @@ export const CloneModal = ({
         [allRoles]
     );
 
-    const selectionButtonStyle = {
-        padding: "6px 10px",
-        borderRadius: "8px",
-        border: "1px solid var(--background-modifier-accent)",
-        background: "var(--background-secondary)",
-        color: "var(--text-normal)",
-        cursor: "pointer",
-        fontSize: "12px",
-    };
-
     const selectOptions = React.useMemo(
         () => [
             { value: "new", label: "Create New Server" },

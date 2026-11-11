@@ -31,9 +31,41 @@ export const settings = definePluginSettings({
             { label: "Top Center", value: "top-center" },
         ],
     },
+    toastStyle: {
+        type: OptionType.SELECT,
+        description: "Toast appearance",
+        options: [
+            { label: "Glass (blurred)", value: "glass", default: true },
+            { label: "Solid (dark)", value: "solid" },
+            { label: "Minimal (flat)", value: "minimal" },
+        ],
+    },
+    toastAccentColor: {
+        type: OptionType.SELECT,
+        description: "Toast accent color",
+        options: [
+            { label: "Blurple", value: "blurple", default: true },
+            { label: "Green", value: "green" },
+            { label: "Yellow", value: "yellow" },
+            { label: "Red", value: "red" },
+            { label: "Fuchsia", value: "fuchsia" },
+            { label: "Cyan", value: "cyan" },
+            { label: "White", value: "white" },
+            { label: "Custom…", value: "custom" },
+        ],
+    },
+    toastCustomColor: {
+        type: OptionType.STRING,
+        description: "Custom accent color (used when accent is 'Custom…')",
+        default: "#5865F2",
+        placeholder: "#5865F2",
+        isValid: (value: string) =>
+            /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(value).trim()) ||
+            "Enter a valid hex color like #5865F2",
+    },
     toastAutoDismiss: {
         type: OptionType.BOOLEAN,
-        description: "Automatically dismiss toasts after the set time",
+        description: "Automatically dismiss toasts after the set time (hovering pauses it)",
         default: true,
     },
     toastDismissDelayMs: {
@@ -56,5 +88,17 @@ export const settings = definePluginSettings({
         default: 85,
         markers: [0, 25, 50, 60, 70, 80, 85, 90, 95, 100],
         stickToMarkers: true,
+    },
+    toastMaxStack: {
+        type: OptionType.SLIDER,
+        description: "Maximum number of visible toasts at once",
+        default: 5,
+        markers: [1, 2, 3, 4, 5, 6, 7, 8],
+        stickToMarkers: true,
+    },
+    toastShowTimer: {
+        type: OptionType.BOOLEAN,
+        description: "Show elapsed time on the progress toast",
+        default: true,
     },
 });
