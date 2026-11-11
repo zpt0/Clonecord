@@ -4,13 +4,24 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const randomDelay = (min: number, max: number) =>
     Math.floor(Math.random() * (max - min + 1)) + min;
 
-export function escapeHtml(str: string): string {
+export function escapeHtml(str: string | null | undefined): string {
+    if (str == null) return "";
+    if (typeof str !== "string") return String(str);
     return str
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+/** Coerce any value to a safe display string — never "[object Object]". */
+export function safeString(value: any): string {
+    if (value == null) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (value instanceof Error) return value.message || String(value);
+    return String(value);
 }
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
