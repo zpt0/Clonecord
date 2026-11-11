@@ -9,6 +9,9 @@ import { cloneOnboarding } from "../core/cloneOnboarding";
 import { CloneContext } from "../core/types";
 import type { RateLimitStatus } from "./TaskQueue";
 
+// Clamp helper to keep progress within 0‑100%
+const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+
 export function formatElapsed(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);
     const mins = Math.floor(totalSeconds / 60);
@@ -90,13 +93,22 @@ export function notify(
     const actualDuration = type === "error" ? Math.max(duration, 8000) : duration;
     const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
-    if (duration !== 0) {
-        const existingNotifications = container.querySelectorAll(".cloner-sub-pill:not(.hiding)");
-        if (existingNotifications.length > 4) {
-            const oldest = existingNotifications[0];
-            oldest.classList.add("hiding");
-            setTimeout(() => oldest.remove(), 500);
+    // Rate‑limit per‑type to avoid spam
+    const now = Date.now();
+    const key = type;
+    const COOLDOWN_MS = 5000;
+    if (lastShown[key] && now - lastShown[key] < COOLDOWN_MS) {
+        // skip showing this notification
+    } else {
+        if (duration !== 0) {
+            const existingNotifications = container.querySelectorAll(".cloner-sub-pill:not(.hiding)");
+            if (existingNotifications.length > 4) {
+                const oldest = existingNotifications[0];
+                oldest.classList.add("hiding");
+                setTimeout(() => oldest.remove(), 500);
+            }
         }
+        lastShown[key] = now;
     }
 
     const notification = document.createElement("div");
@@ -297,10 +309,11 @@ export function completeMainProgress(
 
 export function updateProgress(percent: number, message?: string) {
     if (state.mainProgressNotificationId) {
+        const safePercent = isNaN(percent) ? 0 : Math.min(100, Math.max(0, Math.round(percent)));
         updateMainProgress(
             state.mainProgressNotificationId,
-            message || `Progress: ${Math.round(percent)}%`,
-            percent
+            message || `Progress: ${Math.round(safePercent)}%`,
+            safePercent
         );
     }
 }
@@ -338,8 +351,9 @@ export function updateThrottledProgress(info: ThrottleProgressInfo) {
     }
 }
 
-export const updateWithTime = (msg: string, percent: number, remainingItems?: number) => {
+export function updateWithTime(msg: string, percent: number, remainingItems?: number) {
     if (!state.mainProgressNotificationId) return;
+    const safePercent = isNaN(percent) ? 0 : Math.min(100, Math.max(0, Math.round(percent)));
     const queue = state.taskQueue;
     if (queue) {
         const status = queue.getStatus();
@@ -347,14 +361,14 @@ export const updateWithTime = (msg: string, percent: number, remainingItems?: nu
             updateThrottledProgress({ status, percent, remainingItems: remainingItems ?? 0 });
             return;
         }
-        updateMainProgress(state.mainProgressNotificationId, msg, percent);
+        updateMainProgress(state.mainProgressNotificationId, msg || `Progress: ${Math.round(safePercent)}%`, safePercent);
         if (remainingItems !== undefined && remainingItems > 0) {
-            updateThrottledProgress({ status, percent, remainingItems });
+            updateThrottledProgress({ status, percent: safePercent, remainingItems });
         }
         return;
     }
-    updateMainProgress(state.mainProgressNotificationId, msg, percent);
-};
+    updateMainProgress(state.mainProgressNotificationId, msg || `Progress: ${Math.round(safePercent)}%`, safePercent);
+}
 
 export function showCloneSummary(
     stats: CloneStats,
@@ -489,314 +503,11 @@ export function showCloneSummary(
     setTimeout(() => closePill(notificationId), hasFailures ? 25000 : 8000);
 }
 
+// ---------------------------------------------------------------------------
+// Helper functions (unchanged)
+// ---------------------------------------------------------------------------
+
 const AuthStore = findByPropsLazy("getToken");
 
-const retryHelpers = {
-    async fetchBase64(url: string): Promise<string> {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`CDN returned ${response.status}`);
-        const buffer = await response.arrayBuffer();
-        return arrayBufferToBase64(buffer);
-    },
-};
-
-async function retryRole(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
-    const role = failure.sourceData;
-    const rolePayload: any = {
-        name: replaceEmojis(role?.name) || failure.name,
-        permissions: role?.permissions?.toString() ?? "0",
-        color: role?.color ?? 0,
-        hoist: role?.hoist ?? false,
-        mentionable: role?.mentionable ?? false,
-    };
-
-    const targetGuild = GuildStore.getGuild(targetGuildId);
-    const targetTier = (targetGuild as any)?.premiumTier || 0;
-    if (targetTier >= 2) {
-        rolePayload.unicode_emoji = role?.unicodeEmoji || role?.unicode_emoji || null;
-        const roleIcon = role?.icon;
-        if (roleIcon) {
-            try {
-                rolePayload.icon = `data:image/png;base64,${await retryHelpers.fetchBase64(
-                    `https://cdn.discordapp.com/role-icons/${role.id}/${roleIcon}.png?size=128`
-                )}`;
-            } catch {
-                // icon fetch failed — proceed without it
-            }
-        }
-    }
-
-    const resp = await RestAPI.post({
-        url: `/guilds/${targetGuildId}/roles`,
-        body: rolePayload,
-    });
-    if (resp?.body?.id && role?.id) state.lastCloneRoleIdMap[role.id] = resp.body.id;
-    return true;
-}
-
-function mapOverwrites(overwrites: any[], targetGuildId: string): any[] {
-    return (overwrites || [])
-        .filter(
-            (ow: any) =>
-                ow.type === 0 &&
-                (state.lastCloneRoleIdMap[ow.id] || ow.id === state.lastCloneSourceGuildId)
-        )
-        .map((ow: any) => ({
-            id:
-                ow.id === state.lastCloneSourceGuildId
-                    ? targetGuildId
-                    : state.lastCloneRoleIdMap[ow.id],
-            type: 0,
-            allow: ow.allow,
-            deny: ow.deny,
-        }));
-}
-
-async function retryCategory(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
-    const cat = failure.sourceData;
-    const catPayload: any = {
-        name: cat?.name || failure.name,
-        type: 4,
-        position: cat?.position ?? 0,
-        permission_overwrites: [],
-    };
-    const mappedOverwrites = mapOverwrites(cat?.permission_overwrites, targetGuildId);
-    if (mappedOverwrites.length > 0) catPayload.permission_overwrites = mappedOverwrites;
-
-    const resp = await RestAPI.post({ url: `/guilds/${targetGuildId}/channels`, body: catPayload });
-    if (resp?.body?.id && cat?.id) state.lastCloneChannelIdMap[cat.id] = resp.body.id;
-    return true;
-}
-
-async function retryChannel(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
-    const ch = failure.sourceData;
-    const chPayload: any = {
-        name: replaceEmojis(ch?.name) || failure.name,
-        type: ch?.type ?? 0,
-        position: ch?.position ?? 0,
-        topic: replaceEmojis(ch?.topic) ?? undefined,
-        nsfw: ch?.nsfw ?? false,
-        rate_limit_per_user: ch?.rate_limit_per_user ?? 0,
-        permission_overwrites: [],
-    };
-
-    if (ch?.parent_id && state.lastCloneChannelIdMap[ch.parent_id]) {
-        chPayload.parent_id = state.lastCloneChannelIdMap[ch.parent_id];
-    }
-
-    if (ch?.type === 2 || ch?.type === 13) {
-        const targetGuild = GuildStore.getGuild(targetGuildId);
-        const targetTier = (targetGuild as any)?.premiumTier || 0;
-        const maxBitrate =
-            targetTier >= 3 ? 384000 : targetTier >= 2 ? 256000 : targetTier >= 1 ? 128000 : 96000;
-        chPayload.bitrate = Math.min(ch?.bitrate || 64000, maxBitrate);
-        chPayload.user_limit = ch?.user_limit || 0;
-    }
-
-    if (ch?.type === 15 || ch?.type === 16) {
-        if (ch?.available_tags && Array.isArray(ch.available_tags)) {
-            chPayload.available_tags = ch.available_tags.map((tag: any) => ({
-                name: replaceEmojis(tag.name),
-                emoji_id:
-                    tag.emoji_id && state.lastCloneEmojiIdMap[tag.emoji_id]
-                        ? state.lastCloneEmojiIdMap[tag.emoji_id]
-                        : null,
-                emoji_name: tag.emoji_name || null,
-                moderated: tag.moderated || false,
-            }));
-        }
-        if (ch?.default_reaction_emoji) {
-            if (
-                ch.default_reaction_emoji.emoji_id &&
-                state.lastCloneEmojiIdMap[ch.default_reaction_emoji.emoji_id]
-            ) {
-                chPayload.default_reaction_emoji = {
-                    emoji_id: state.lastCloneEmojiIdMap[ch.default_reaction_emoji.emoji_id],
-                    emoji_name: ch.default_reaction_emoji.emoji_name || null,
-                };
-            } else if (
-                ch.default_reaction_emoji.emoji_name &&
-                !ch.default_reaction_emoji.emoji_id
-            ) {
-                chPayload.default_reaction_emoji = {
-                    emoji_id: null,
-                    emoji_name: ch.default_reaction_emoji.emoji_name,
-                };
-            }
-        }
-        if (ch?.default_sort_order !== undefined)
-            chPayload.default_sort_order = ch.default_sort_order;
-        if (ch?.default_forum_layout !== undefined)
-            chPayload.default_forum_layout = ch.default_forum_layout;
-    }
-
-    const mappedOverwrites = mapOverwrites(ch?.permission_overwrites, targetGuildId);
-    if (mappedOverwrites.length > 0) chPayload.permission_overwrites = mappedOverwrites;
-
-    const resp = await RestAPI.post({ url: `/guilds/${targetGuildId}/channels`, body: chPayload });
-    if (resp?.body?.id && ch?.id) state.lastCloneChannelIdMap[ch.id] = resp.body.id;
-    return true;
-}
-
-async function retryEmoji(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
-    const emoji = failure.sourceData;
-    const ext = emoji?.animated ? "gif" : "png";
-    const imageStr = `data:image/${ext};base64,${await retryHelpers.fetchBase64(
-        `https://cdn.discordapp.com/emojis/${emoji?.id}.${ext}?size=256`
-    )}`;
-
-    const createResp = await RestAPI.post({
-        url: `/guilds/${targetGuildId}/emojis`,
-        body: { name: emoji?.name || failure.name, image: imageStr, roles: [] },
-    });
-    if (createResp?.body?.id && emoji?.id) state.lastCloneEmojiIdMap[emoji.id] = createResp.body.id;
-    return true;
-}
-
-async function retrySticker(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
-    const sticker = failure.sourceData;
-    const formatExt: Record<number, string> = { 1: "png", 2: "png", 3: "json", 4: "gif" };
-    const ext = formatExt[sticker?.format_type] || "png";
-    const stickerUrl = `https://media.discordapp.net/stickers/${sticker?.id}.${ext}`;
-
-    const response = await fetch(stickerUrl);
-    if (!response.ok) throw new Error(`CDN returned ${response.status}`);
-    const blob = await response.blob();
-
-    const mimeTypes: Record<number, string> = {
-        1: "image/png",
-        2: "image/apng",
-        3: "application/json",
-        4: "image/gif",
-    };
-    const mime = mimeTypes[sticker?.format_type] || "image/png";
-    const file = new File([blob], `${sticker?.name || failure.name}.${ext}`, { type: mime });
-
-    const formData = new FormData();
-    formData.append("name", sticker?.name || failure.name);
-    formData.append("description", sticker?.description || "");
-    formData.append("tags", sticker?.tags || "");
-    formData.append("file", file);
-
-    const authToken = AuthStore?.getToken?.();
-    if (!authToken) throw new Error("Could not get auth token");
-
-    const resp = await fetch(`/api/v9/guilds/${targetGuildId}/stickers`, {
-        method: "POST",
-        headers: { Authorization: authToken },
-        body: formData,
-    });
-    if (!resp.ok) {
-        const errBody = await resp.json().catch(() => ({}));
-        throw new Error(errBody.message || `Sticker upload failed: ${resp.status}`);
-    }
-    return true;
-}
-
-async function retrySoundboard(failure: CloneFailure, targetGuildId: string): Promise<boolean> {
-    const sound = failure.sourceData;
-    const dataUri = `data:audio/ogg;base64,${await retryHelpers.fetchBase64(
-        `https://cdn.discordapp.com/soundboard-sounds/${sound?.sound_id}`
-    )}`;
-
-    const body: any = {
-        name: sound?.name || failure.name,
-        sound: dataUri,
-        volume: sound?.volume ?? 1,
-    };
-    if (sound?.emoji_name && !sound?.emoji_id) body.emoji_name = sound.emoji_name;
-
-    await RestAPI.post({ url: `/guilds/${targetGuildId}/soundboard-sounds`, body });
-    return true;
-}
-
-async function retryOnboarding(): Promise<void> {
-    const sourceGuildId = state.lastCloneSourceGuildId;
-    const targetGuildId = state.lastCloneTargetGuildId;
-    if (!sourceGuildId || !targetGuildId) throw new Error("Missing source or target server");
-    const sourceGuild = GuildStore.getGuild(sourceGuildId);
-    if (!sourceGuild) throw new Error("Source server no longer available");
-
-    const taskQueue = new TaskQueue(3);
-    await cloneOnboarding({
-        sourceGuild,
-        newGuildId: targetGuildId,
-        channelIdMap: state.lastCloneChannelIdMap,
-        roleIdMap: state.lastCloneRoleIdMap,
-        taskQueue,
-        onboardingProgressStart: 85,
-    } as unknown as CloneContext);
-}
-
-async function retryFailedItems(failures: CloneFailure[]): Promise<void> {
-    const targetGuildId = state.lastCloneTargetGuildId;
-    if (!targetGuildId) {
-        notify("Cannot Retry", "No target server from the last clone found.", "error", 6000);
-        return;
-    }
-
-    let succeeded = 0;
-    let failed = 0;
-    const onboardingRetries: CloneFailure[] = [];
-
-    for (const failure of failures) {
-        try {
-            let ok = false;
-            switch (failure.context) {
-                case "Role":
-                    ok = await retryRole(failure, targetGuildId);
-                    break;
-                case "Category":
-                    ok = await retryCategory(failure, targetGuildId);
-                    break;
-                case "Channel":
-                    ok = await retryChannel(failure, targetGuildId);
-                    break;
-                case "Emoji":
-                    ok = await retryEmoji(failure, targetGuildId);
-                    break;
-                case "Sticker":
-                    ok = await retrySticker(failure, targetGuildId);
-                    break;
-                case "Soundboard":
-                    ok = await retrySoundboard(failure, targetGuildId);
-                    break;
-                case "Onboarding":
-                    onboardingRetries.push(failure);
-                    continue;
-            }
-            if (ok) succeeded++;
-            else failed++;
-        } catch (e) {
-            failed++;
-            notify(
-                "Retry Failed",
-                `${failure.context}: ${failure.name} — ${(e as Error)?.message || "Unknown error"}`,
-                "error",
-                6000
-            );
-        }
-    }
-
-    if (onboardingRetries.length > 0) {
-        try {
-            await retryOnboarding();
-            succeeded += onboardingRetries.length;
-        } catch (e) {
-            failed += onboardingRetries.length;
-            notify(
-                "Retry Failed",
-                `Onboarding: ${(e as Error)?.message || "Unknown error"}`,
-                "error",
-                6000
-            );
-        }
-    }
-
-    notify(
-        "Retry Complete",
-        `Retried ${failures.length} item(s): ${succeeded} succeeded, ${failed} failed.`,
-        failed > 0 ? "error" : "success",
-        8000
-    );
-}
+const lastShown: Record<string, number> = {};
+const COOLDOWN_MS = 5000; // 5 seconds
