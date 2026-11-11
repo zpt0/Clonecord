@@ -8,6 +8,7 @@ import { TaskQueue } from "./TaskQueue";
 import { cloneOnboarding } from "../core/cloneOnboarding";
 import { CloneContext } from "../core/types";
 import type { RateLimitStatus } from "./TaskQueue";
+import { settings } from "../settings";
 
 // Clamp helper to keep progress within 0‑100%
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
@@ -61,6 +62,7 @@ export function getPillContainer(): HTMLElement {
     const existing = document.getElementById("vc-pill-container");
     if (existing) {
         state.pillContainer = existing;
+        applyContainerPosition(existing);
         return existing;
     }
     if (!state.pillContainer || !document.body.contains(state.pillContainer)) {
@@ -69,7 +71,56 @@ export function getPillContainer(): HTMLElement {
         state.pillContainer.className = "vc-pill-container";
         document.body.appendChild(state.pillContainer);
     }
+    applyContainerPosition(state.pillContainer);
     return state.pillContainer;
+}
+
+function applyContainerPosition(container: HTMLElement): void {
+    const pos = settings.toastPosition.value as string;
+    const maxW = settings.toastMaxWidth.value as number;
+    const opacity = settings.toastOpacity.value as number;
+
+    // Reset all positioning
+    container.style.top = "";
+    container.style.bottom = "";
+    container.style.left = "";
+    container.style.right = "";
+    container.style.transform = "";
+    container.style.alignItems = "";
+    container.style.flexDirection = "";
+    container.style.maxWidth = `${maxW}px`;
+
+    if (pos === "top-right") {
+        container.style.top = "16px";
+        container.style.right = "16px";
+        container.style.alignItems = "flex-end";
+        container.style.flexDirection = "column-reverse";
+    } else if (pos === "top-left") {
+        container.style.top = "16px";
+        container.style.left = "16px";
+        container.style.alignItems = "flex-start";
+        container.style.flexDirection = "column-reverse";
+    } else if (pos === "bottom-right") {
+        container.style.bottom = "16px";
+        container.style.right = "16px";
+        container.style.alignItems = "flex-end";
+        container.style.flexDirection = "column";
+    } else if (pos === "bottom-left") {
+        container.style.bottom = "16px";
+        container.style.left = "16px";
+        container.style.alignItems = "flex-start";
+        container.style.flexDirection = "column";
+    } else {
+        // top-center
+        container.style.top = "16px";
+        container.style.left = "50%";
+        container.style.transform = "translateX(-50%)";
+        container.style.alignItems = "center";
+        container.style.flexDirection = "column-reverse";
+    }
+
+    // Apply opacity as a CSS variable so pills can reference it
+    container.style.setProperty("--cc-toast-opacity", String(opacity / 100));
 }
 
 export function closePill(id: string) {
@@ -84,11 +135,13 @@ export function notify(
     title: string,
     body: string,
     type: "success" | "info" | "error" = "info",
-    duration = 3000,
+    duration = 0, // 0 = use settings default
     actions: NotificationAction[] = []
 ): string {
     const container = getPillContainer();
-    const actualDuration = type === "error" ? Math.max(duration, 8000) : duration;
+    const autoDismiss = settings.toastAutoDismiss.value as boolean;
+    const defaultDelay = settings.toastDismissDelayMs.value as number;
+    const actualDuration = autoDismiss ? Math.max(duration || defaultDelay, 1000) : duration === 0 ? 0 : duration;
     const notificationId = `cloner-sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
     // Rate‑limit per‑type to avoid spam
@@ -144,7 +197,7 @@ export function notify(
         }
     });
 
-    if (duration !== 0) {
+    if (actualDuration > 0) {
         setTimeout(() => closePill(notificationId), actualDuration);
     }
 
@@ -296,8 +349,11 @@ export function completeMainProgress(
 
     pill.classList.add(success ? "success" : "error");
 
-    const delay = customPercentText === "Cancelled" ? 3000 : 6000;
-    setTimeout(() => closePill(id), delay);
+    const autoDismiss = settings.toastAutoDismiss.value as boolean;
+    const delay = autoDismiss ? settings.toastDismissDelayMs.value as number : 0;
+    if (delay > 0) {
+        setTimeout(() => closePill(id), delay);
+    }
 }
 
 export function updateProgress(percent: number, message?: string) {
@@ -496,7 +552,12 @@ export function showCloneSummary(
     }
 
     // auto-dismiss so the summary is temporary; failures stay a bit longer so the user can retry
-    setTimeout(() => closePill(notificationId), hasFailures ? 25000 : 8000);
+    const autoDismiss = settings.toastAutoDismiss.value as boolean;
+    const baseDelay = settings.toastDismissDelayMs.value as number;
+    const summaryDelay = autoDismiss ? (hasFailures ? Math.max(baseDelay, 15000) : baseDelay) : 0;
+    if (summaryDelay > 0) {
+        setTimeout(() => closePill(notificationId), summaryDelay);
+    }
 }
 
 // ---------------------------------------------------------------------------

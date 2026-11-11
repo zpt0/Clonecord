@@ -47,7 +47,6 @@
     top: 16px;
     right: 16px;
     width: auto;
-    max-width: 420px;
     z-index: 2147483647;
     display: flex;
     flex-direction: column-reverse;
@@ -64,7 +63,7 @@
 
 /* ─── Main Pill ───────────────────────────────────────────── */
 .cloner-pill {
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, var(--cc-toast-opacity, 0.85));
     backdrop-filter: blur(12px) saturate(150%);
     -webkit-backdrop-filter: blur(12px) saturate(150%);
     color: #ffffff;
@@ -380,7 +379,7 @@
 
 /* ─── Sub Pills (notifications) ───────────────────────────── */
 .cloner-sub-pill {
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, var(--cc-toast-opacity, 0.85));
     backdrop-filter: blur(12px) saturate(150%);
     -webkit-backdrop-filter: blur(12px) saturate(150%);
     border-radius: 10px;
@@ -447,6 +446,36 @@
     color: white;
     flex-shrink: 0;
     font-weight: bold;
+    margin-top: 2px;
+}
+
+.cloner-sub-pill-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.cloner-sub-pill-title {
+    font-weight: 600;
+    font-size: 13px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.cloner-sub-pill-body {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .cloner-sub-pill-icon.success {
@@ -544,6 +573,7 @@
     gap: 5px;
     font-size: 11px;
     line-height: 1.4;
+    flex-wrap: wrap;
 }
 
 .cloner-summary-failure-ctx {
@@ -556,23 +586,27 @@
     flex-shrink: 0;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    white-space: nowrap;
 }
 
 .cloner-summary-failure-name {
     font-weight: 600;
     color: rgba(255, 255, 255, 0.9);
     flex-shrink: 0;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal;
 }
 
 .cloner-summary-failure-err {
     color: rgba(255, 255, 255, 0.45);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal;
 }
 
 .cloner-summary-failure-more {
