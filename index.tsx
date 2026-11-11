@@ -11,7 +11,6 @@ import { PLUGIN_VERSION, UPDATE_CHECK_ENABLED, UPDATE_CHECK_URL } from "./consta
 import { settings } from "./settings";
 import { showUpdateModal, navigateToUpdatesChannel } from "./components/UpdateModal";
 import { CloneModal } from "./components/CloneModal";
-import { ToastSettings } from "./components/ToastSettings";
 import { cloneServer, resumeClone } from "./core/clone";
 import { loadCheckpoint, clearCheckpoint } from "./core/checkpoints";
 import { state } from "./store";
@@ -176,7 +175,6 @@ export default definePlugin({
     authors: [{ name: "zpt0.dev", id: 299670891875270656n }],
     tags: ["Utility", "Customisation"],
     settings,
-    settingsAboutComponent: () => <ToastSettings />,
 
     start() {
         state.settings = settings;
