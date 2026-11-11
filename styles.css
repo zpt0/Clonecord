@@ -1,22 +1,27 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Clonecord Toast System
    ─────────────────────────
-   Driven by CSS custom properties set on .vc-pill-container by JS:
+   Driven by CSS custom properties set on .cloner-toast-container by JS:
      --cc-toast-opacity   background alpha (0–1)
+     --cc-toast-max-width pill max width (px)
      --cc-accent         accent color (hex)
      --cc-accent-rgb     accent color as "r,g,b" (for rgba() usage)
      --cc-toast-slide    entry/exit slide offset (transform)
      --cc-toast-origin   transform origin matching the chosen corner
    Appearance variants via data-style on the container: glass | solid | minimal
+   Placement via data-pos on the container: top-right | top-left | bottom-right |
+   bottom-left | top-center
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── Container ───────────────────────────────────────────── */
-.vc-pill-container {
+/* Unique name — "vc-pill-container" is used by other plugins (e.g.
+   Questcord); sharing that element made both plugins fight over it. */
+.cloner-toast-container {
     position: fixed;
-    top: 16px;
+    top: 16px; /* default = top-right until data-pos is applied */
     right: 16px;
     width: auto;
-    max-width: 420px; /* overridden inline from toastMaxWidth setting */
+    max-width: var(--cc-toast-max-width, 400px);
     z-index: 2147483647;
     display: flex;
     flex-direction: column-reverse;
@@ -33,12 +38,73 @@
 }
 
 /* Let children (pills) be clickable despite container pointer-events:none */
-.vc-pill-container > * {
+.cloner-toast-container > * {
     pointer-events: auto;
 }
 
-.vc-pill-container::-webkit-scrollbar {
+.cloner-toast-container::-webkit-scrollbar {
     display: none;
+}
+
+/* ─── Position variants — all placement lives here, not in JS ── */
+.cloner-toast-container[data-pos="top-right"] {
+    top: 16px;
+    right: 16px;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    --cc-toast-slide: translateX(40px);
+    --cc-toast-origin: top right;
+}
+
+.cloner-toast-container[data-pos="top-left"] {
+    top: 16px;
+    left: 16px;
+    right: auto;
+    bottom: auto;
+    transform: none;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    --cc-toast-slide: translateX(-40px);
+    --cc-toast-origin: top left;
+}
+
+.cloner-toast-container[data-pos="bottom-right"] {
+    bottom: 16px;
+    right: 16px;
+    top: auto;
+    left: auto;
+    transform: none;
+    flex-direction: column;
+    align-items: flex-end;
+    --cc-toast-slide: translateX(40px);
+    --cc-toast-origin: bottom right;
+}
+
+.cloner-toast-container[data-pos="bottom-left"] {
+    bottom: 16px;
+    left: 16px;
+    top: auto;
+    right: auto;
+    transform: none;
+    flex-direction: column;
+    align-items: flex-start;
+    --cc-toast-slide: translateX(-40px);
+    --cc-toast-origin: bottom left;
+}
+
+.cloner-toast-container[data-pos="top-center"] {
+    top: 16px;
+    left: 50%;
+    bottom: auto;
+    right: auto;
+    transform: translateX(-50%);
+    flex-direction: column-reverse;
+    align-items: center;
+    --cc-toast-slide: translateY(-40px);
+    --cc-toast-origin: top center;
 }
 
 /* ─── Shared pill skin + style variants ───────────────────── */
@@ -52,8 +118,8 @@
 }
 
 /* Glass (default): blurred, translucent */
-.vc-pill-container[data-style="glass"] .cloner-pill,
-.vc-pill-container[data-style="glass"] .cloner-sub-pill {
+.cloner-toast-container[data-style="glass"] .cloner-pill,
+.cloner-toast-container[data-style="glass"] .cloner-sub-pill {
     background: rgba(0, 0, 0, var(--cc-toast-opacity));
     backdrop-filter: blur(12px) saturate(150%);
     -webkit-backdrop-filter: blur(12px) saturate(150%);
@@ -64,16 +130,16 @@
 }
 
 /* Solid: opaque dark */
-.vc-pill-container[data-style="solid"] .cloner-pill,
-.vc-pill-container[data-style="solid"] .cloner-sub-pill {
+.cloner-toast-container[data-style="solid"] .cloner-pill,
+.cloner-toast-container[data-style="solid"] .cloner-sub-pill {
     background: rgb(20 21 25 / min(calc(var(--cc-toast-opacity) + 0.15), 1));
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 /* Minimal: flat, no blur, no border — only the accent stripe */
-.vc-pill-container[data-style="minimal"] .cloner-pill,
-.vc-pill-container[data-style="minimal"] .cloner-sub-pill {
+.cloner-toast-container[data-style="minimal"] .cloner-pill,
+.cloner-toast-container[data-style="minimal"] .cloner-sub-pill {
     background: rgba(0, 0, 0, var(--cc-toast-opacity));
     border: 1px solid transparent;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
@@ -86,7 +152,7 @@
     align-items: stretch;
     overflow: visible;
     width: 100%;
-    max-width: 400px;
+    max-width: var(--cc-toast-max-width, 400px);
     padding: 10px 14px;
     margin: 0;
     animation: pillEntry 0.35s cubic-bezier(0.25, 1, 0.5, 1) both;
@@ -344,7 +410,7 @@
     align-items: flex-start;
     gap: 10px;
     width: 100%;
-    max-width: 400px;
+    max-width: var(--cc-toast-max-width, 400px);
     padding: 10px 12px;
     /* accent stripe */
     border-left: 3px solid var(--cc-accent, #5865f2);
@@ -552,7 +618,7 @@
 /* ─── Summary pill ────────────────────────────────────────── */
 .cloner-summary {
     align-items: flex-start;
-    max-width: 420px;
+    max-width: var(--cc-toast-max-width, 400px);
 }
 
 .cloner-summary-stats {

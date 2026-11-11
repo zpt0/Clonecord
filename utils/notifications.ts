@@ -192,93 +192,66 @@ function registerInteractive(pill: HTMLElement, dismissOnClick: boolean) {
 
 export function cleanupContainer() {
     try {
-        const container = document.getElementById("vc-pill-container");
-        if (!container) return;
-        container.querySelectorAll(".cloner-pill, .cloner-sub-pill").forEach((el) => el.remove());
-        if (container.children.length === 0) container.remove();
+        const container = document.getElementById("cloner-toast-container");
+        if (container) {
+            container.querySelectorAll(".cloner-pill, .cloner-sub-pill").forEach((el) => el.remove());
+            if (container.children.length === 0) container.remove();
+        }
+        // Older builds shared the "vc-pill-container" element with other
+        // plugins (e.g. Questcord). Purge any of our pills left behind in it.
+        document
+            .querySelectorAll(".vc-pill-container .cloner-pill, .vc-pill-container .cloner-sub-pill")
+            .forEach((el) => el.remove());
     } catch (e) {
         console.warn("[Clonecord] cleanupContainer failed:", e);
     }
 }
 
-function applyContainerPosition(container: HTMLElement): void {
-    const pos = toastSetting<string>("toastPosition", "top-right");
-    const maxW = toastSetting<number>("toastMaxWidth", 400);
+const TOAST_POSITIONS = ["top-right", "top-left", "bottom-right", "bottom-left", "top-center"];
+
+/**
+ * Applies the toast theme to the container.
+ *
+ * All placement (top/right/bottom/left, flex direction, slide direction) is
+ * handled purely in CSS via [data-pos] on the container — JS only feeds the
+ * theme variables. This keeps the layout immune to inline-style fights with
+ * other plugins that used to share the "vc-pill-container" element.
+ */
+function applyContainerTheme(container: HTMLElement): void {
+    const rawPos = toastSetting<string>("toastPosition", "top-right");
+    const pos = TOAST_POSITIONS.includes(rawPos) ? rawPos : "top-right";
+
+    const maxW = Math.round(Math.min(Math.max(toastSetting<number>("toastMaxWidth", 400), 200), 800));
     const opacity = Math.min(Math.max(toastSetting<number>("toastOpacity", 85), 0), 100);
-    const style = toastSetting<string>("toastStyle", "glass");
+    const rawStyle = toastSetting<string>("toastStyle", "glass");
+    const style = ["glass", "solid", "minimal"].includes(rawStyle) ? rawStyle : "glass";
     const accent = getAccentColor();
 
-    // Reset all inline positioning
-    container.style.top = "";
-    container.style.bottom = "";
-    container.style.left = "";
-    container.style.right = "";
-    container.style.transform = "";
-    container.style.alignItems = "";
-    container.style.flexDirection = "";
-    container.style.maxWidth = `${maxW}px`;
-    container.dataset.style = ["glass", "solid", "minimal"].includes(style) ? style : "glass";
-
-    let slide = "translateX(40px)";
-    let origin = "top right";
-
-    if (pos === "top-left") {
-        container.style.top = "16px";
-        container.style.left = "16px";
-        container.style.alignItems = "flex-start";
-        container.style.flexDirection = "column-reverse";
-        slide = "translateX(-40px)";
-        origin = "top left";
-    } else if (pos === "bottom-right") {
-        container.style.bottom = "16px";
-        container.style.right = "16px";
-        container.style.alignItems = "flex-end";
-        container.style.flexDirection = "column";
-        origin = "bottom right";
-    } else if (pos === "bottom-left") {
-        container.style.bottom = "16px";
-        container.style.left = "16px";
-        container.style.alignItems = "flex-start";
-        container.style.flexDirection = "column";
-        slide = "translateX(-40px)";
-        origin = "bottom left";
-    } else if (pos === "top-center") {
-        container.style.top = "16px";
-        container.style.left = "50%";
-        container.style.transform = "translateX(-50%)";
-        container.style.alignItems = "center";
-        container.style.flexDirection = "column-reverse";
-        slide = "translateY(-40px)";
-        origin = "top center";
-    } else {
-        // top-right (default)
-        container.style.top = "16px";
-        container.style.right = "16px";
-        container.style.alignItems = "flex-end";
-        container.style.flexDirection = "column-reverse";
-    }
-
+    container.dataset.pos = pos;
+    container.dataset.style = style;
     container.style.setProperty("--cc-toast-opacity", String(opacity / 100));
     container.style.setProperty("--cc-accent", accent);
     container.style.setProperty("--cc-accent-rgb", hexToRgbParts(accent));
-    container.style.setProperty("--cc-toast-slide", slide);
-    container.style.setProperty("--cc-toast-origin", origin);
+    container.style.setProperty("--cc-toast-max-width", `${maxW}px`);
 }
 
 export function getPillContainer(): HTMLElement {
-    const existing = document.getElementById("vc-pill-container");
+    const existing = document.getElementById("cloner-toast-container");
     if (existing) {
         state.pillContainer = existing;
-        applyContainerPosition(existing);
+        applyContainerTheme(existing);
         return existing;
     }
     if (!state.pillContainer || !document.body.contains(state.pillContainer)) {
         state.pillContainer = document.createElement("div");
-        state.pillContainer.id = "vc-pill-container";
-        state.pillContainer.className = "vc-pill-container";
+        // Deliberately NOT "vc-pill-container": that id/class is used by other
+        // plugins (e.g. Questcord), which made both plugins fight over the
+        // same element and its position.
+        state.pillContainer.id = "cloner-toast-container";
+        state.pillContainer.className = "cloner-toast-container";
         document.body.appendChild(state.pillContainer);
     }
-    applyContainerPosition(state.pillContainer);
+    applyContainerTheme(state.pillContainer);
     return state.pillContainer;
 }
 
