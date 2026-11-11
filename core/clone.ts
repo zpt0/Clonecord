@@ -80,7 +80,11 @@ export async function resumeClone(checkpointRunId?: string): Promise<boolean> {
     return true;
 }
 
-let pendingResumeMaps: { roleIdMap: Record<string, string>; channelIdMap: Record<string, string>; emojiIdMap: Record<string, string> } | null = null;
+let pendingResumeMaps: {
+    roleIdMap: Record<string, string>;
+    channelIdMap: Record<string, string>;
+    emojiIdMap: Record<string, string>;
+} | null = null;
 
 export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
     if (state.isCloning) {
@@ -183,13 +187,19 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         const [iconData, bannerData, splashData] = await Promise.all([
             iconHash
-                ? fetchAssetBase64(`https://cdn.discordapp.com/icons/${sourceGuild.id}/${iconHash}.${iconExt}?size=512`)
+                ? fetchAssetBase64(
+                      `https://cdn.discordapp.com/icons/${sourceGuild.id}/${iconHash}.${iconExt}?size=512`
+                  )
                 : Promise.resolve(null),
             bannerHash
-                ? fetchAssetBase64(`https://cdn.discordapp.com/banners/${sourceGuild.id}/${bannerHash}.${bannerExt}?size=512`)
+                ? fetchAssetBase64(
+                      `https://cdn.discordapp.com/banners/${sourceGuild.id}/${bannerHash}.${bannerExt}?size=512`
+                  )
                 : Promise.resolve(null),
             splashHash
-                ? fetchAssetBase64(`https://cdn.discordapp.com/splashes/${sourceGuild.id}/${splashHash}.${splashExt}?size=512`)
+                ? fetchAssetBase64(
+                      `https://cdn.discordapp.com/splashes/${sourceGuild.id}/${splashHash}.${splashExt}?size=512`
+                  )
                 : Promise.resolve(null),
         ]);
 
@@ -234,6 +244,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     });
                     await Promise.all(deleteChannelPromises);
                 }
+            } else {
+                // No extra preparation needed for resume mode
             }
         } else {
             updateWithTime("Creating new server...", 2);
@@ -242,9 +254,33 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                 icon: iconData,
                 system_channel_flags: (sourceGuild as any).system_channel_flags || 0,
             };
-            const createResp = (await RestAPI.post({ url: "/guilds", body: createBody })) as any;
-            newGuildId = createResp?.body?.id;
-            if (!newGuildId) throw new Error("Failed to create server — no ID returned");
+            let newGuildId: string;
+            let attempts = 0;
+            const maxAttempts = 3;
+            while (attempts < maxAttempts) {
+                try {
+                    const createResp = await RestAPI.post({ url: "/guilds", body: createBody });
+                    const respBody = createResp?.body;
+                    if (respBody && respBody.id) {
+                        newGuildId = respBody.id;
+                        break; // success
+                    } else {
+                        throw new Error("Failed to create server — no ID returned");
+                    }
+                } catch (e) {
+                    if (e.status === 429) {
+                        const retryAfter = parseFloat(e.body.retry_after);
+                        await sleep(retryAfter * 1000);
+                        attempts++;
+                        continue;
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+            if (!newGuildId) {
+                throw new Error("Failed to create server — no ID returned");
+            }
             state.currentCloneGuildId = newGuildId;
 
             const appeared = await waitForGuildInStore(newGuildId);
