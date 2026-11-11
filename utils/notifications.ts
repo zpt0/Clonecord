@@ -1,4 +1,5 @@
 import { state } from "../store";
+import { messages } from "./messages";
 import { escapeHtml, replaceEmojis, arrayBufferToBase64 } from "./helpers";
 import { NotificationAction, CloneStats, CloneFailure } from "../types";
 import { RestAPI, GuildStore } from "@webpack/common";
@@ -153,15 +154,16 @@ export function createMainProgressNotification(
     const container = getPillContainer();
     const notificationId = `cloner-main-${Date.now()}`;
 
+    const cancelBtnText = isExistingServer
+        ? messages.buttons.cancelExisting
+        : messages.buttons.cancelNew;
+    const skipRolesBtnHtml = showSkipRoles
+        ? `<button class="cloner-btn cloner-skip-roles-btn" style="display:none">${messages.buttons.skipRoles}</button>`
+        : "";
+
     const pill = document.createElement("div");
     pill.className = "cloner-pill";
     pill.id = notificationId;
-
-    const cancelBtnText = isExistingServer ? "Cancel" : "Cancel & Delete";
-    const cancelBtnClass = isExistingServer ? "cloner-btn" : "cloner-btn danger";
-    const skipRolesBtnHtml = showSkipRoles
-        ? `<button class="cloner-btn cloner-skip-roles-btn" style="display:none">Skip Roles</button>`
-        : "";
 
     pill.innerHTML = `
         <div class="cloner-pill-compact">
@@ -178,7 +180,7 @@ export function createMainProgressNotification(
                 </div>
                 <div class="cloner-pill-actions">
                     ${skipRolesBtnHtml}
-                    <button class="${cancelBtnClass} cloner-cancel-btn">${cancelBtnText}</button>
+                    <button class="${isExistingServer ? "cloner-btn" : "cloner-btn danger"} cloner-cancel-btn">${cancelBtnText}</button>
                 </div>
             </div>
         </div>
@@ -394,22 +396,26 @@ export function showCloneSummary(
 
     const failuresHtml = hasFailures
         ? `<div class="cloner-summary-failures">` +
-          `<div class="cloner-summary-section-label">Failed (${failures.length})</div>` +
-          failures
-              .slice(0, 5)
-              .map(
-                  (f) =>
-                      `<div class="cloner-summary-failure-row"><span class="cloner-summary-failure-ctx">${escapeHtml(f.context)}</span><span class="cloner-summary-failure-name">${escapeHtml(f.name)}</span><span class="cloner-summary-failure-err">${escapeHtml(f.error)}</span></div>`
-              )
-              .join("") +
-          (failures.length > 5
-              ? `<div class="cloner-summary-failure-more">+${failures.length - 5} more</div>`
-              : "") +
-          `</div>`
+              `<div class="cloner-summary-section-label">Failed (${failures.length})</div>` +
+              failures
+                  .slice(0, 5)
+                  .map(
+                      (f) =>
+                          `<div class="cloner-summary-failure-row"><span class="cloner-summary-failure-ctx">${escapeHtml(
+                              f.context
+                          )}</span><span class="cloner-summary-failure-name">${escapeHtml(f.name)}</span><span class="cloner-summary-failure-err">${escapeHtml(
+                              f.error
+                          )}</span></div>`
+                  )
+                  .join("") +
+              (failures.length > 5
+                  ? `<div class="cloner-summary-failure-more">+${failures.length - 5} more</div>`
+                  : "") +
+              `</div>`
         : "";
 
-    const titleText = hasFailures ? "Cloned with errors" : "Clone complete";
-    const iconHtml = `<div class="cloner-sub-pill-icon ${hasFailures ? "error" : "success"}">${hasFailures ? "\u2715" : "\u2713"}</div>`;
+    const titleText = hasFailures ? messages.summary.errors : messages.summary.success;
+    const iconHtml = `<div class="cloner-sub-pill-icon ${hasFailures ? "error" : "success"}>${hasFailures ? "\u2715" : "\u2713"}</div>`;
 
     // action buttons
     const btnIds = {
