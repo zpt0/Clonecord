@@ -88,7 +88,8 @@ export async function clearCheckpoint(): Promise<void> {
             await DataStore.set(CHECKPOINT_KEY, { ...raw, completedAt: Date.now() });
         }
         setTimeout(async () => {
-            const deleteDataStore = typeof DataStore.delete === "function" ? DataStore.delete : null;
+            const deleteDataStore =
+                typeof DataStore.delete === "function" ? DataStore.delete : null;
             if (deleteDataStore) {
                 await deleteDataStore(CHECKPOINT_KEY).catch(() => {});
             }

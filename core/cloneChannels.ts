@@ -158,9 +158,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                     discordMessage = discordBody;
                 }
             }
-            const finalError = safeString(
-                discordMessage || (e as Error)?.message || String(e)
-            );
+            const finalError = safeString(discordMessage || (e as Error)?.message || String(e));
             console.error(
                 "[Clonecord] Category create failed:",
                 cat.name,
@@ -414,7 +412,10 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                 chPayload.topic = String(chPayload.topic).slice(0, 1021) + "...";
             }
             if (typeof chPayload.rate_limit_per_user === "number") {
-                chPayload.rate_limit_per_user = Math.min(Math.max(chPayload.rate_limit_per_user, 0), 21600);
+                chPayload.rate_limit_per_user = Math.min(
+                    Math.max(chPayload.rate_limit_per_user, 0),
+                    21600
+                );
             }
             if (Array.isArray(chPayload.permission_overwrites)) {
                 chPayload.permission_overwrites = chPayload.permission_overwrites
@@ -525,9 +526,7 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
                     discordMessage = discordBody;
                 }
             }
-            const finalError = safeString(
-                discordMessage || (e as Error)?.message || String(e)
-            );
+            const finalError = safeString(discordMessage || (e as Error)?.message || String(e));
             console.error(
                 "[Clonecord] Channel create failed:",
                 ch.name,

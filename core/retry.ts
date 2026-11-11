@@ -37,12 +37,7 @@ function extractErrorMessage(e: any): string {
         }
     }
     if (body && typeof body === "object") {
-        return (
-            body.message ||
-            body?.errors?._errors?.[0]?.message ||
-            e?.message ||
-            String(e)
-        );
+        return body.message || body?.errors?._errors?.[0]?.message || e?.message || String(e);
     }
     return e?.message || String(e);
 }
@@ -118,7 +113,10 @@ function buildChannelPayload(ch: any): any {
                     ow.type === 0 && (roleIdMap[ow.id] || ow.id === state.lastCloneSourceGuildId)
             )
             .map((ow: any) => ({
-                id: ow.id === state.lastCloneSourceGuildId ? state.lastCloneTargetGuildId : roleIdMap[ow.id],
+                id:
+                    ow.id === state.lastCloneSourceGuildId
+                        ? state.lastCloneTargetGuildId
+                        : roleIdMap[ow.id],
                 type: 0,
                 allow: ow.allow != null ? String(ow.allow) : "0",
                 deny: ow.deny != null ? String(ow.deny) : "0",
@@ -190,9 +188,7 @@ async function retryRole(role: any, targetGuildId: string): Promise<void> {
 
 async function retryEmoji(emoji: any, targetGuildId: string): Promise<void> {
     const ext = emoji.animated ? "gif" : "png";
-    const response = await fetch(
-        `https://cdn.discordapp.com/emojis/${emoji.id}.${ext}?size=256`
-    );
+    const response = await fetch(`https://cdn.discordapp.com/emojis/${emoji.id}.${ext}?size=256`);
     if (!response.ok) throw new Error(`CDN returned ${response.status}`);
     const buffer = await response.arrayBuffer();
     const base64 = arrayBufferToBase64(buffer);

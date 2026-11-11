@@ -1,16 +1,36 @@
 import { NavigationRouter, RestAPI, GuildStore } from "@webpack/common";
 import { findByPropsLazy } from "@webpack";
-import { notify, createMainProgressNotification, completeMainProgress, updateProgress, updateWithTime, showCloneSummary } from "../utils/notifications";
+import {
+    notify,
+    createMainProgressNotification,
+    completeMainProgress,
+    updateProgress,
+    updateWithTime,
+    showCloneSummary,
+} from "../utils/notifications";
 import { TaskQueue } from "../utils/TaskQueue";
 import { translateError } from "../utils/errorHandler";
 import { state, throwIfCancelled } from "../store";
-import { fetchGuildData, fetchGuildRoles, extractChannels, normalizeChannel, fetchAssetBase64 } from "../utils/api";
+import {
+    fetchGuildData,
+    fetchGuildRoles,
+    extractChannels,
+    normalizeChannel,
+    fetchAssetBase64,
+} from "../utils/api";
 import { CloneOptions } from "../types";
 import { Guild } from "@vencord/discord-types";
 import { sleep } from "../utils/helpers";
 import { CloneContext } from "./types";
 import { collectCloneGaps } from "./cloneGaps";
-import { newRunId, saveCheckpoint, clearCheckpoint, emptyProgress, CloneCheckpoint, CHECKPOINT_VERSION } from "./checkpoints";
+import {
+    newRunId,
+    saveCheckpoint,
+    clearCheckpoint,
+    emptyProgress,
+    CloneCheckpoint,
+    CHECKPOINT_VERSION,
+} from "./checkpoints";
 
 const AuthStore = findByPropsLazy("getToken");
 

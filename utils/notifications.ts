@@ -68,7 +68,13 @@ function normalizeHex(raw: string | undefined | null, fallback: string): string 
     if (typeof raw !== "string") return fallback;
     const t = raw.trim().replace(/^#/, "");
     if (/^[0-9a-fA-F]{3}$/.test(t)) {
-        return "#" + t.split("").map((c) => c + c).join("");
+        return (
+            "#" +
+            t
+                .split("")
+                .map((c) => c + c)
+                .join("")
+        );
     }
     if (/^[0-9a-fA-F]{6}$/.test(t)) {
         return "#" + t.toLowerCase();
@@ -189,7 +195,9 @@ export function closePill(id: string) {
 function enforceStackLimit(container: HTMLElement) {
     try {
         const max = Math.min(Math.max(toastSetting<number>("toastMaxStack", 5), 1), 8);
-        const pills = Array.from(container.querySelectorAll<HTMLElement>(".cloner-sub-pill:not(.hiding)"));
+        const pills = Array.from(
+            container.querySelectorAll<HTMLElement>(".cloner-sub-pill:not(.hiding)")
+        );
         while (pills.length > max) {
             const oldest = pills.shift();
             if (!oldest) break;
@@ -230,13 +238,17 @@ export function cleanupContainer() {
     try {
         const container = document.getElementById("cloner-toast-container");
         if (container) {
-            container.querySelectorAll(".cloner-pill, .cloner-sub-pill").forEach((el) => el.remove());
+            container
+                .querySelectorAll(".cloner-pill, .cloner-sub-pill")
+                .forEach((el) => el.remove());
             if (container.children.length === 0) container.remove();
         }
         // Older builds shared the "vc-pill-container" element with other
         // plugins (e.g. Questcord). Purge any of our pills left behind in it.
         document
-            .querySelectorAll(".vc-pill-container .cloner-pill, .vc-pill-container .cloner-sub-pill")
+            .querySelectorAll(
+                ".vc-pill-container .cloner-pill, .vc-pill-container .cloner-sub-pill"
+            )
             .forEach((el) => el.remove());
     } catch (e) {
         console.warn("[Clonecord] cleanupContainer failed:", e);
@@ -340,10 +352,8 @@ function formatEta(ms: number): string {
 const TOAST_ICONS: Record<string, string> = {
     success:
         '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
-    error:
-        '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
-    info:
-        '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 8h.01"/><path d="M12 11v5"/></svg>',
+    error: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    info: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 8h.01"/><path d="M12 11v5"/></svg>',
 };
 
 export function notify(
@@ -527,7 +537,12 @@ export function createMainProgressNotification(
                         await RestAPI.del({ url: `/guilds/${state.currentCloneGuildId}` });
                         completeMainProgress(notificationId, "Server deleted", false, "Cancelled");
                     } catch {
-                        completeMainProgress(notificationId, "Could not delete server", false, "Cancelled");
+                        completeMainProgress(
+                            notificationId,
+                            "Could not delete server",
+                            false,
+                            "Cancelled"
+                        );
                     }
                     state.currentCloneGuildId = null;
                 } else {
@@ -654,7 +669,8 @@ export function updateThrottledProgress(info: ThrottleProgressInfo) {
                     : "");
             if (bodyEl) bodyEl.textContent = msg;
         } else if (status.avgRequestMs > 0 && remainingItems > 0 && percent < 100) {
-            const etaMs = (remainingItems * status.avgRequestMs) / Math.max(1, status.currentConcurrency);
+            const etaMs =
+                (remainingItems * status.avgRequestMs) / Math.max(1, status.currentConcurrency);
             const eta = formatEta(etaMs);
             if (eta) {
                 const percentEl = pill.querySelector(".cloner-pill-percent");
@@ -678,13 +694,21 @@ export function updateWithTime(msg: string, percent: number, remainingItems?: nu
             updateThrottledProgress({ status, percent, remainingItems: remainingItems ?? 0 });
             return;
         }
-        updateMainProgress(state.mainProgressNotificationId, msg || `Progress: ${Math.round(safePercent)}%`, safePercent);
+        updateMainProgress(
+            state.mainProgressNotificationId,
+            msg || `Progress: ${Math.round(safePercent)}%`,
+            safePercent
+        );
         if (remainingItems !== undefined && remainingItems > 0) {
             updateThrottledProgress({ status, percent: safePercent, remainingItems });
         }
         return;
     }
-    updateMainProgress(state.mainProgressNotificationId, msg || `Progress: ${Math.round(safePercent)}%`, safePercent);
+    updateMainProgress(
+        state.mainProgressNotificationId,
+        msg || `Progress: ${Math.round(safePercent)}%`,
+        safePercent
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -786,7 +810,9 @@ export function showCloneSummary(
         container.appendChild(pill);
         enforceStackLimit(container);
 
-        pill.querySelector(".cloner-toast-close")?.addEventListener("click", () => closePill(notificationId));
+        pill.querySelector(".cloner-toast-close")?.addEventListener("click", () =>
+            closePill(notificationId)
+        );
         document
             .getElementById(btnIds.close)
             ?.addEventListener("click", () => closePill(notificationId));
@@ -869,7 +895,11 @@ export function showCloneSummary(
         // auto-dismiss so the summary is temporary; failures stay longer so the user can retry
         const autoDismiss = toastSetting<boolean>("toastAutoDismiss", true);
         const baseDelay = toastSetting<number>("toastDismissDelayMs", 8000);
-        const summaryDelay = autoDismiss ? (hasFailures ? Math.max(baseDelay, 15000) : baseDelay) : 0;
+        const summaryDelay = autoDismiss
+            ? hasFailures
+                ? Math.max(baseDelay, 15000)
+                : baseDelay
+            : 0;
         scheduleDismiss(notificationId, summaryDelay);
     } catch (e) {
         console.warn("[Clonecord] showCloneSummary failed:", e);

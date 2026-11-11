@@ -330,7 +330,11 @@
     width: 100%;
     transform: scaleX(0);
     transform-origin: left center;
-    background: linear-gradient(90deg, var(--cc-accent, #5865f2), rgba(var(--cc-accent-rgb, 88, 101, 242), 0.55));
+    background: linear-gradient(
+        90deg,
+        var(--cc-accent, #5865f2),
+        rgba(var(--cc-accent-rgb, 88, 101, 242), 0.55)
+    );
     border-radius: 2px;
     transition:
         transform 0.25s ease,
