@@ -74,6 +74,10 @@ export async function loadCheckpoint(): Promise<CloneCheckpoint | null> {
             return null;
         }
 
+        // A checkpoint saved less than a minute ago belongs to an active run,
+        // not a stale session — ignore it.
+        if (age < 60_000) return null;
+
         return raw;
     } catch (e) {
         console.warn("[Clonecord] Failed to load clone checkpoint:", e);
