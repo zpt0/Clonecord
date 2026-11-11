@@ -1,22 +1,10 @@
 import { NavigationRouter, RestAPI, GuildStore } from "@webpack/common";
 import { findByPropsLazy } from "@webpack";
-
-import {
-    notify,
-    createMainProgressNotification,
-    completeMainProgress,
-    updateProgress,
-    updateWithTime,
-    showCloneSummary,
-} from "../utils/notifications";
-
-import {
-    fetchGuildData,
-    fetchGuildRoles,
-    extractChannels,
-    normalizeChannel,
-    fetchAssetBase64,
-} from "../utils/api";
+import { notify, createMainProgressNotification, completeMainProgress, updateProgress, updateWithTime, showCloneSummary } from "../utils/notifications";
+import { TaskQueue } from "../utils/TaskQueue";
+import { translateError } from "../utils/errorHandler";
+import { state, throwIfCancelled } from "../store";
+import { fetchGuildData, fetchGuildRoles, extractChannels, normalizeChannel, fetchAssetBase64 } from "../utils/api";
 import { TaskQueue } from "../utils/TaskQueue";
 import { translateError } from "../utils/errorHandler";
 import { state, throwIfCancelled } from "../store";
@@ -25,14 +13,7 @@ import { Guild } from "@vencord/discord-types";
 import { sleep } from "../utils/helpers";
 import { CloneContext } from "./types";
 import { collectCloneGaps } from "./cloneGaps";
-import {
-    newRunId,
-    saveCheckpoint,
-    clearCheckpoint,
-    emptyProgress,
-    CloneCheckpoint,
-    CHECKPOINT_VERSION,
-} from "./checkpoints";
+import { newRunId, saveCheckpoint, clearCheckpoint, emptyProgress, CloneCheckpoint, CHECKPOINT_VERSION } from "./checkpoints";
 
 const AuthStore = findByPropsLazy("getToken");
 
@@ -99,11 +80,7 @@ export async function resumeClone(checkpointRunId?: string): Promise<boolean> {
     return true;
 }
 
-let pendingResumeMaps: {
-    roleIdMap: Record<string, string>;
-    channelIdMap: Record<string, string>;
-    emojiIdMap: Record<string, string>;
-} | null = null;
+let pendingResumeMaps: { roleIdMap: Record<string, string>; channelIdMap: Record<string, string>; emojiIdMap: Record<string, string> } | null = null;
 
 export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
     if (state.isCloning) {
@@ -202,19 +179,13 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         const [iconData, bannerData, splashData] = await Promise.all([
             iconHash
-                ? fetchAssetBase64(
-                      `https://cdn.discordapp.com/icons/${sourceGuild.id}/${iconHash}.${iconExt}?size=512`
-                  )
+                ? fetchAssetBase64(`https://cdn.discordapp.com/icons/${sourceGuild.id}/${iconHash}.${iconExt}?size=512`)
                 : Promise.resolve(null),
             bannerHash
-                ? fetchAssetBase64(
-                      `https://cdn.discordapp.com/banners/${sourceGuild.id}/${bannerHash}.${bannerExt}?size=512`
-                  )
+                ? fetchAssetBase64(`https://cdn.discordapp.com/banners/${sourceGuild.id}/${bannerHash}.${bannerExt}?size=512`)
                 : Promise.resolve(null),
             splashHash
-                ? fetchAssetBase64(
-                      `https://cdn.discordapp.com/splashes/${sourceGuild.id}/${splashHash}.${splashExt}?size=512`
-                  )
+                ? fetchAssetBase64(`https://cdn.discordapp.com/splashes/${sourceGuild.id}/${splashHash}.${splashExt}?size=512`)
                 : Promise.resolve(null),
         ]);
 
@@ -502,8 +473,8 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                 source: fullGuildData,
                 targetTier: (targetGuild as any)?.premiumTier || 0,
                 sourceTier: fullGuildData?.premium_tier || 0,
-                sourceStickerCount,
-                sourceSoundboardCount,
+                sourceStickerCount: sourceStickerCount,
+                sourceSoundboardCount: sourceSoundboardCount,
                 options: {
                     cloneChannels: options.cloneChannels,
                     cloneRoles: options.cloneRoles,
@@ -513,12 +484,11 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     cloneEmojis: options.cloneEmojis,
                 },
                 stats: {
-                    stickersCloned,
-                    soundboardCloned,
-                    onboardingCloned,
-                    emojisCloned,
+                    stickersCloned: progress.stickersCloned,
+                    soundboardCloned: progress.soundboardCloned,
+                    onboardingCloned: onboardingCloned,
                 },
-                sourceEmojiCount,
+                sourceEmojiCount: sourceEmojiCount,
             });
             showCloneSummary(state.cloneStats, state.failedItems, gaps);
         } catch {
