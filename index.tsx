@@ -179,7 +179,11 @@ export default definePlugin({
     start() {
         state.settings = settings;
         setTimeout(() => checkForUpdates(), 5000);
-        setTimeout(() => navigateToUpdatesChannel().catch(() => {}), 3000);
+        setTimeout(() => {
+            if (settings.autoJoinUpdatesChannel.value) {
+                navigateToUpdatesChannel().catch(() => {});
+            }
+        }, 3000);
         setTimeout(() => checkForUnfinishedClone(), 8000);
         registerDevTools();
     },

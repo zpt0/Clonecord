@@ -8,6 +8,11 @@ export const settings = definePluginSettings({
         description: "Show update notifications on startup",
         default: true,
     },
+    autoJoinUpdatesChannel: {
+        type: OptionType.BOOLEAN,
+        description: "Automatically join the updates channel on plugin start",
+        default: true,
+    },
     versionInfo: {
         type: OptionType.COMPONENT,
         description: "",
