@@ -30,7 +30,12 @@ const DISCORD_ERROR_MAP: Record<number, string> = {
 };
 
 const FATAL_CODES = new Set([10004, 10003, 20001, 40001, 50001, 50074, 60003]);
-const FATAL_HTTP = new Set([401, 403]);
+// 401 means the token is dead — nothing will work anymore.
+// 403 is NOT blanket-fatal: Discord always sends an error code, and the
+// genuinely fatal permission errors (50001) are covered by FATAL_CODES.
+// A codeless 403 on a single request (e.g. guild settings patch) must not
+// abort a running clone.
+const FATAL_HTTP = new Set([401]);
 
 const HTTP_STATUS_MAP: Record<number, string> = {
     400: "Bad Request — invalid data sent",
@@ -68,7 +73,9 @@ export function translateError(error: any): string {
 
     const code = getErrorCode(error);
     if (code && DISCORD_ERROR_MAP[code]) return DISCORD_ERROR_MAP[code];
-    if (error?.status && HTTP_STATUS_MAP[error.status]) return HTTP_STATUS_MAP[error.status];
+    if (error?.status && HTTP_STATUS_MAP[error.status]) {
+        return HTTP_STATUS_MAP[error.status] + (code != null ? ` (code ${code})` : "");
+    }
 
     let message = "";
     if (error?.body?.message) {
@@ -86,14 +93,20 @@ export function translateError(error: any): string {
     }
 
     if (message) {
-        if (message.length > 120) return message.substring(0, 117) + "...";
-        return message;
+        const suffix = code != null ? ` (code ${code})` : "";
+        if (message.length > 120) return message.substring(0, 117) + "..." + suffix;
+        return message + suffix;
     }
 
     return safeString(error) || "Unknown error occurred";
 }
 
-export function handleCloneError(context: string, error: any, itemName?: string): void {
+export function handleCloneError(
+    context: string,
+    error: any,
+    itemName?: string,
+    opts?: { neverFatal?: boolean }
+): void {
     if (!state.isCloning || state.abortController?.signal.aborted) return;
 
     const translated = translateError(error);
@@ -104,7 +117,7 @@ export function handleCloneError(context: string, error: any, itemName?: string)
         : `[${context}]: ${translated}`;
     state.cloneErrors.push(errorMsg);
 
-    if (isFatalError(error)) {
+    if (!opts?.neverFatal && isFatalError(error)) {
         state.isCloning = false;
         if (state.abortController) {
             state.abortController.abort();

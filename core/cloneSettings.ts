@@ -3,6 +3,16 @@ import { updateWithTime } from "../utils/notifications";
 import { handleCloneError } from "../utils/errorHandler";
 import { CloneContext } from "./types";
 
+function getErrCode(error: any): number | null {
+    let code = error?.body?.code ?? error?.code;
+    if (!code && error?.text) {
+        try {
+            code = JSON.parse(error.text)?.code;
+        } catch {}
+    }
+    return typeof code === "number" ? code : null;
+}
+
 export async function cloneSettings(ctx: CloneContext) {
     const {
         fullGuildData,
@@ -14,69 +24,91 @@ export async function cloneSettings(ctx: CloneContext) {
     } = ctx;
 
     try {
-        const settingsPayload: any = {};
+        const isCommunity =
+            fullGuildData.features?.includes("COMMUNITY") ||
+            estimateChannels.some((c: any) => [5, 13, 15, 16].includes(c.type));
 
+        // Fields every guild accepts (needs MANAGE_GUILD, which the clone
+        // target owner always has)
+        const safePayload: any = {};
+        if (fullGuildData.system_channel_id && channelIdMap[fullGuildData.system_channel_id]) {
+            safePayload.system_channel_id = channelIdMap[fullGuildData.system_channel_id];
+        }
+        if (fullGuildData.afk_channel_id && channelIdMap[fullGuildData.afk_channel_id]) {
+            safePayload.afk_channel_id = channelIdMap[fullGuildData.afk_channel_id];
+        }
+
+        // Fields that are only valid on guilds with the COMMUNITY feature
+        const communityPayload: any = {};
         if (fullGuildData.rules_channel_id && channelIdMap[fullGuildData.rules_channel_id]) {
-            settingsPayload.rules_channel_id = channelIdMap[fullGuildData.rules_channel_id];
+            communityPayload.rules_channel_id = channelIdMap[fullGuildData.rules_channel_id];
         }
         if (
             fullGuildData.public_updates_channel_id &&
             channelIdMap[fullGuildData.public_updates_channel_id]
         ) {
-            settingsPayload.public_updates_channel_id =
+            communityPayload.public_updates_channel_id =
                 channelIdMap[fullGuildData.public_updates_channel_id];
-        }
-        if (fullGuildData.system_channel_id && channelIdMap[fullGuildData.system_channel_id]) {
-            settingsPayload.system_channel_id = channelIdMap[fullGuildData.system_channel_id];
         }
         if (
             fullGuildData.safety_alerts_channel_id &&
             channelIdMap[fullGuildData.safety_alerts_channel_id]
         ) {
-            settingsPayload.safety_alerts_channel_id =
+            communityPayload.safety_alerts_channel_id =
                 channelIdMap[fullGuildData.safety_alerts_channel_id];
         }
-        if (fullGuildData.afk_channel_id && channelIdMap[fullGuildData.afk_channel_id]) {
-            settingsPayload.afk_channel_id = channelIdMap[fullGuildData.afk_channel_id];
-        }
 
-        const isCommunity =
-            fullGuildData.features?.includes("COMMUNITY") ||
-            estimateChannels.some((c: any) => [5, 13, 15, 16].includes(c.type));
-
-        if (isCommunity) {
-            const SELF_APPLICABLE_FEATURES = new Set(["COMMUNITY", "INVITES_DISABLED"]);
-            settingsPayload.features = (fullGuildData.features || ["COMMUNITY"]).filter(
-                (f: string) => SELF_APPLICABLE_FEATURES.has(f)
+        // Sent as separate PATCHes so one rejected part cannot take the
+        // others (or the running clone) down. Discord 403s are permanent —
+        // no point retrying them five times.
+        const patchGuild = (body: any) =>
+            taskQueue.execute(
+                async () => {
+                    await RestAPI.patch({
+                        url: `/guilds/${newGuildId}`,
+                        body,
+                    });
+                },
+                undefined,
+                undefined,
+                2
             );
-            if (settingsPayload.features.length === 0) {
-                settingsPayload.features = ["COMMUNITY"];
+
+        // 1) Safe bindings — independent of the community feature
+        if (Object.keys(safePayload).length > 0) {
+            try {
+                await patchGuild(safePayload);
+            } catch (e: any) {
+                handleCloneError("Settings", e, "Server channels", { neverFatal: true });
             }
         }
 
-        if (Object.keys(settingsPayload).length > 0) {
+        // 2) Enable COMMUNITY on its own. Deliberately only this feature:
+        //    copying things like INVITES_DISABLED (raid pause) is undesirable
+        //    and rejected by Discord with 403.
+        let communityEnabled = false;
+        if (isCommunity) {
             try {
-                await taskQueue.execute(
-                    async () => {
-                        await RestAPI.patch({
-                            url: `/guilds/${newGuildId}`,
-                            body: settingsPayload,
-                        });
-                    },
-                    undefined,
-                    undefined,
-                    5
-                );
-            } catch (patchError: any) {
-                let errCode = patchError?.body?.code;
-                if (!errCode && patchError?.text) {
-                    try {
-                        errCode = JSON.parse(patchError.text).code;
-                    } catch {}
+                await patchGuild({ features: ["COMMUNITY"] });
+                communityEnabled = true;
+            } catch (e: any) {
+                const code = getErrCode(e);
+                if (code === 50055) {
+                    // target already has the feature — treat as success
+                    communityEnabled = true;
+                } else if (code !== 40006) {
+                    // 40006 = guild is being updated (transient) — ignore
+                    handleCloneError("Settings", e, "Community feature", { neverFatal: true });
                 }
-                if (errCode !== 40006) {
-                    throw patchError;
-                }
+            }
+        }
+
+        // 3) Community-bound bindings — only valid once community is active
+        if (communityEnabled && Object.keys(communityPayload).length > 0) {
+            try {
+                await patchGuild(communityPayload);
+            } catch (e: any) {
+                handleCloneError("Settings", e, "Community channels", { neverFatal: true });
             }
         }
 
@@ -119,6 +151,6 @@ export async function cloneSettings(ctx: CloneContext) {
             await Promise.all(positionPromises);
         }
     } catch (e) {
-        handleCloneError("Settings", e);
+        handleCloneError("Settings", e, "Channel positions", { neverFatal: true });
     }
 }
