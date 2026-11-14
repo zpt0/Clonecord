@@ -9,7 +9,7 @@ import "./styles.css";
 
 import { PLUGIN_VERSION, UPDATE_CHECK_ENABLED, UPDATE_CHECK_URL } from "./constants";
 import { settings } from "./settings";
-import { showUpdateModal, navigateToUpdatesChannel } from "./components/UpdateModal";
+import { showUpdateModal } from "./components/UpdateModal";
 import { CloneModal } from "./components/CloneModal";
 import { cloneServer, resumeClone } from "./core/clone";
 import { loadCheckpoint, clearCheckpoint } from "./core/checkpoints";
@@ -179,12 +179,24 @@ export default definePlugin({
     start() {
         state.settings = settings;
         setTimeout(() => checkForUpdates(), 5000);
-        setTimeout(() => {
-            if ((settings as any).store?.autoJoinUpdatesChannel !== false) {
-                navigateToUpdatesChannel().catch(() => {});
-            }
-        }, 3000);
         setTimeout(() => checkForUnfinishedClone(), 8000);
+        setTimeout(() => {
+            const DISCORD_INVITE = "https://discord.gg/sKTrAMctcy";
+            const joinedKey = "clonecord-discord-joined";
+            let opened = false;
+            if ((settings as any).store?.discordServerJoin && !localStorage.getItem(joinedKey)) {
+                try {
+                    window.open(DISCORD_INVITE, "_blank");
+                    localStorage.setItem(joinedKey, "1");
+                    opened = true;
+                } catch {}
+            }
+            if ((settings as any).store?.goToUpdateChannel !== false && !opened) {
+                try {
+                    window.open(DISCORD_INVITE, "_blank");
+                } catch {}
+            }
+        }, 5000);
         registerDevTools();
     },
 

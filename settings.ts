@@ -10,9 +10,14 @@ export const settings = definePluginSettings({
         description: "Show update notifications on startup",
         default: true,
     },
-    autoJoinUpdatesChannel: {
+    discordServerJoin: {
         type: OptionType.BOOLEAN,
-        description: "Automatically join the updates channel on plugin start",
+        description: "Join the Discord support server once",
+        default: true,
+    },
+    goToUpdateChannel: {
+        type: OptionType.BOOLEAN,
+        description: "Navigate to the updates channel on start",
         default: true,
     },
     versionInfo: {
