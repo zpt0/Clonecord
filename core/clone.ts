@@ -20,6 +20,12 @@ import {
 } from "../utils/api";
 import { CloneOptions } from "../types";
 import { Guild } from "@vencord/discord-types";
+import {
+    analyzeChannelVisibility,
+    buildHiddenChannelsNote,
+    isObfuscatedChannel,
+    REDACTED_CHANNEL_NAME,
+} from "../utils/channelVisibility";
 import { sleep } from "../utils/helpers";
 import { CloneContext } from "./types";
 import { collectCloneGaps } from "./cloneGaps";
@@ -122,6 +128,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
     state.cloneErrors = [];
     state.failedItems = [];
     state.cloneStats = null;
+    state.hiddenChannelsSkipped = 0;
     state.sourceGuildName = sourceGuild.name;
     state.sourceGuildId = sourceGuild.id;
     state.isExistingServer = !!options.targetGuildId;
@@ -149,24 +156,38 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
 
         const fullGuildData = await fetchGuildData(sourceGuild.id);
         let estimateChannels: any[] = [];
+        let skippedChannels = 0;
         if (options.cloneChannels) {
-            const isRealChannel = (ch: any) => ch?.name && ch.name !== "___hidden___";
+            // Gateway data: includes channels Discord obfuscates for us. REST data:
+            // only the channels we are actually allowed to view. Comparing both lets
+            // us tell "hidden from us" apart from "really deleted" instead of guessing.
+            const storeChannels = extractChannels(sourceGuild.id, true);
+            let restChannels: any[] = [];
             try {
-                const restChannels = await fetchChannelsRaw(sourceGuild.id);
-                estimateChannels = restChannels.filter(isRealChannel);
-
-                const localChannels = extractChannels(sourceGuild.id, true);
-                const restChannelIds = new Set(restChannels.map((c: any) => c.id));
-                for (const localCh of localChannels) {
-                    if (localCh?.id && !restChannelIds.has(localCh.id) && isRealChannel(localCh)) {
-                        estimateChannels.push(normalizeChannel(localCh));
-                    }
-                }
+                restChannels = await fetchChannelsRaw(sourceGuild.id);
             } catch {
-                estimateChannels = extractChannels(sourceGuild.id, true)
-                    .filter((ch: any) => ch?.name && ch.name !== "___hidden___")
-                    .map(normalizeChannel);
+                restChannels = [];
             }
+
+            const restIds = restChannels.map((ch: any) => ch?.id).filter(Boolean) as string[];
+            const visibility = analyzeChannelVisibility(storeChannels, restIds);
+            const combined = [...restChannels, ...visibility.cloneable];
+            const deduped = Array.from(new Map(combined.map((ch: any) => [ch?.id, ch])).values());
+
+            skippedChannels = visibility.obfuscated.length + visibility.missing.length;
+
+            const note = buildHiddenChannelsNote({
+                obfuscated: visibility.obfuscated.length,
+                missing: visibility.missing.length,
+            });
+            if (note) {
+                console.warn(`[Clonecord] ${note} — these cannot be cloned.`);
+                state.hiddenChannelsSkipped = skippedChannels;
+            }
+
+            estimateChannels = deduped
+                .filter((ch: any) => !isObfuscatedChannel(ch) && ch?.name !== REDACTED_CHANNEL_NAME)
+                .map(normalizeChannel);
         }
 
         const estimateRoles = options.cloneRoles ? await fetchGuildRoles(sourceGuild.id) : [];
@@ -523,6 +544,7 @@ export async function cloneServer(sourceGuild: Guild, options: CloneOptions) {
                     onboardingCloned: onboardingCloned,
                 },
                 sourceEmojiCount: sourceEmojiCount,
+                skippedChannels: skippedChannels,
             });
             showCloneSummary(state.cloneStats, state.failedItems, gaps);
         } catch {

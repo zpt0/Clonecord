@@ -25,6 +25,7 @@ export const state = {
     lastCloneChannelIdMap: {} as Record<string, string>,
     lastCloneEmojiIdMap: {} as Record<string, string>,
     lastCloneSourceGuildId: null as string | null,
+    hiddenChannelsSkipped: 0,
 };
 
 export function throwIfCancelled() {

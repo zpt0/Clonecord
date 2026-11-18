@@ -11,6 +11,8 @@ export interface GapCheckInput {
     sourceStickerCount?: number;
     sourceSoundboardCount?: number;
     sourceEmojiCount?: number;
+    /** channels Discord redacted server-side, so they could not be cloned */
+    skippedChannels?: number;
     options: {
         cloneChannels: boolean;
         cloneRoles: boolean;
@@ -36,6 +38,7 @@ export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
         sourceStickerCount,
         sourceSoundboardCount,
         sourceEmojiCount,
+        skippedChannels,
         options,
         stats,
     } = input;
@@ -114,6 +117,16 @@ export function collectCloneGaps(input: GapCheckInput): CloneGap[] {
             title: "Channels",
             detail: "Channel cloning was disabled.",
             howToFix: "Re-run with channels enabled.",
+        });
+    }
+
+    if (options.cloneChannels && skippedChannels && skippedChannels > 0) {
+        gaps.push({
+            title: "Hidden channels",
+            detail:
+                `${skippedChannels} channel${skippedChannels === 1 ? "" : "s"} can't be cloned ` +
+                "(hidden by Discord) — your account lacks View Channel access.",
+            howToFix: "Grant the cloning account View Channel access, then re-run the clone.",
         });
     }
 

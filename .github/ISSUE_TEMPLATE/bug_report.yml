@@ -7,12 +7,20 @@ body:
           value: |
               Thanks for taking the time to report a bug. Please fill out the information below to help us investigate the issue.
 
+              > [!WARNING]
+              > **Channels can't be cloned? That is not a bug in this plugin.**
+              > Discord redacts channels your account has no **View Channel** access to
+              > (server-side; the name arrives as `___hidden___`). No client patch can
+              > recover them. Clonecord skips those channels and reports the count.
+              > Grant the cloning account the missing roles on the source server first.
+              > Issues about this are closed as *not a bug*.
+
     - type: textarea
       id: description
       attributes:
           label: Description
           description: A clear and concise description of what the bug is.
-          placeholder: Describe the bug...
+          placeholder: Describe the bug (do not report channels that Discord hides from your account)...
       validations:
           required: true
 

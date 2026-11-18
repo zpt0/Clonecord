@@ -458,7 +458,15 @@ export const CloneModal = ({
         props,
     ]);
 
-    const allChannels = React.useMemo(() => extractChannels(guild.id, true), [guild.id]);
+    const allChannels = React.useMemo(
+        () => extractChannels(guild.id, true).filter((ch: any) => ch?.name !== "___hidden___"),
+        [guild.id]
+    );
+    const hiddenChannelCount = React.useMemo(
+        () =>
+            extractChannels(guild.id, true).filter((ch: any) => ch?.name === "___hidden___").length,
+        [guild.id]
+    );
     const allRoles = React.useMemo(
         () =>
             (GuildRoleStore.getSortedRoles(guild.id) || []).filter(
@@ -541,7 +549,9 @@ export const CloneModal = ({
         ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64`
         : null;
 
-    const sourceChannelCount = cloneChannels ? extractChannels(guild.id, true).length : 0;
+    // Discord redacts channels the cloning account cannot view (name "___hidden___"),
+    // so they are excluded from the clone — report them instead of faking a count.
+    const sourceChannelCount = cloneChannels ? allChannels.length : 0;
     const sourceRoleCount = cloneRoles
         ? (GuildRoleStore.getSortedRoles(guild.id) || []).filter((r: any) => r.name !== "@everyone")
               .length
@@ -941,6 +951,21 @@ export const CloneModal = ({
                             {cloneSystemFlags ? ", and System Channel Flags" : ""} will always be
                             cloned.
                         </div>
+
+                        {cloneChannels && hiddenChannelCount > 0 && (
+                            <div
+                                className="cc-modal-subtext"
+                                style={{
+                                    color: "var(--status-danger)",
+                                    fontWeight: 600,
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                {hiddenChannelCount} channel
+                                {hiddenChannelCount === 1 ? "" : "s"} can't be cloned (hidden by
+                                Discord) — your account lacks View Channel access.
+                            </div>
+                        )}
 
                         <div>
                             <span className="cc-modal-label">Core:</span>

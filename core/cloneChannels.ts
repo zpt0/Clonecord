@@ -1,6 +1,7 @@
 import { RestAPI, GuildStore } from "@webpack/common";
 import { replaceEmojis, sleep, safeString } from "../utils/helpers";
 import { checkGuildExistence } from "../utils/api";
+import { isObfuscatedChannel, REDACTED_CHANNEL_NAME } from "../utils/channelVisibility";
 import { updateWithTime } from "../utils/notifications";
 import { state } from "../store";
 import { handleCloneError } from "../utils/errorHandler";
@@ -320,6 +321,13 @@ export async function cloneChannels(ctx: CloneContext): Promise<CloneChannelsRes
     const channelPromises = remainingChannels.map(async (ch: any) => {
         if (!state.isCloning) return;
         if (skipRemaining) return;
+
+        // Discord redacts channels we cannot view server-side; there is nothing
+        // left to clone from them, so skip instead of creating an empty channel.
+        if (ch?.name === REDACTED_CHANNEL_NAME || isObfuscatedChannel(ch)) {
+            state.hiddenChannelsSkipped++;
+            return;
+        }
 
         try {
             checkGuildExistence(sourceGuild.id, newGuildId);

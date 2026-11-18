@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1]
+
+- Hidden-channel-safe cloning: channels Discord redacts server-side (`___hidden___`, `CHANNEL_OBFUSCATED` flag) are detected, skipped and counted instead of being cloned as empty channels
+- The channel list now compares gateway and REST data, so "hidden from this account" is no longer confused with "channel was deleted"
+- Clone modal warns how many channels will be skipped, and the post-clone summary lists them under "Not cloned"
+- Channels withheld from the cloning account cannot be recovered by any client patch — the plugin says so instead of failing silently
+
 ## [1.3.1]
 
 - Fix the build against Vencord 1.15.14: the deprecated `Button` export was removed from `@webpack/common`

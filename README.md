@@ -23,6 +23,16 @@
 
 ---
 
+> [!WARNING]
+> **Channels can't be cloned? That's not a bug in this plugin.**
+> Discord redacts channels your account has no **View Channel** access to (server-side; the name
+> arrives as `___hidden___`). No client patch can bring them back — Clonecord skips them and reports
+> how many were left out. Grant the cloning account the missing roles on the source server.
+>
+> Please don't open issues for this; see the [issue chooser](https://github.com/zpt0/Clonecord/issues/new/choose).
+
+---
+
 <p align="center">
   <strong>⚠️ Disclaimer:</strong> This project is for educational purposes only. Using this plugin may violate Discord's <a href="https://discord.com/terms">Terms of Service</a> and <a href="https://discord.com/guidelines">Community Guidelines</a>, which can result in permanent account termination. Use at your own risk.
 </p>
