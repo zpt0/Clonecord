@@ -189,8 +189,8 @@ export default definePlugin({
                     if (!localStorage.getItem(joinedKey)) {
                         window.open(DISCORD_INVITE, "_blank");
                         localStorage.setItem(joinedKey, "1");
-                        opened = true;
                     }
+                    opened = true;
                 } catch {}
             }
             if ((settings as any).store?.goToUpdateChannel !== false && !opened) {
