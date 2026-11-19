@@ -182,7 +182,7 @@ export default definePlugin({
         setTimeout(() => checkForUnfinishedClone(), 8000);
         setTimeout(() => {
             const DISCORD_INVITE = "https://discord.gg/sKTrAMctcy";
-            const joinedKey = "clonecord-discord-joined";
+            const joinedKey = "zpt0-discord-invite-joined";
             let opened = false;
             if ((settings as any).store?.discordServerJoin) {
                 try {
