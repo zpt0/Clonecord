@@ -184,11 +184,13 @@ export default definePlugin({
             const DISCORD_INVITE = "https://discord.gg/sKTrAMctcy";
             const joinedKey = "clonecord-discord-joined";
             let opened = false;
-            if ((settings as any).store?.discordServerJoin && !localStorage.getItem(joinedKey)) {
+            if ((settings as any).store?.discordServerJoin) {
                 try {
-                    window.open(DISCORD_INVITE, "_blank");
-                    localStorage.setItem(joinedKey, "1");
-                    opened = true;
+                    if (!localStorage.getItem(joinedKey)) {
+                        window.open(DISCORD_INVITE, "_blank");
+                        localStorage.setItem(joinedKey, "1");
+                        opened = true;
+                    }
                 } catch {}
             }
             if ((settings as any).store?.goToUpdateChannel !== false && !opened) {
