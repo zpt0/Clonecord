@@ -38,7 +38,7 @@ export function VersionDisplay() {
             latestVersion = latestVersion.replace(/^v/i, "").trim();
 
             if (!latestVersion) {
-                setUpdateStatus("No releases found");
+                setUpdateStatus("No public release feed (local build)");
                 setIsChecking(false);
                 return;
             }

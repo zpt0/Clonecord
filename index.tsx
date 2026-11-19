@@ -3,19 +3,15 @@ import { ModalProps, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { Guild } from "@vencord/discord-types";
 import { Menu, React, GuildStore } from "@webpack/common";
-import { DataStore } from "@api/index";
 
 import "./styles.css";
 
-import { PLUGIN_VERSION, UPDATE_CHECK_ENABLED, UPDATE_CHECK_URL } from "./constants";
 import { settings } from "./settings";
-import { showUpdateModal } from "./components/UpdateModal";
 import { CloneModal } from "./components/CloneModal";
 import { cloneServer, resumeClone } from "./core/clone";
 import { loadCheckpoint, clearCheckpoint } from "./core/checkpoints";
 import { state } from "./store";
 import { cleanupContainer, notify, closePill } from "./utils/notifications";
-import { compareVersions } from "./utils/helpers";
 import { registerDevTools, unregisterDevTools } from "./devTools";
 
 function ClonecordIcon({ size = 18 }: { size?: number }) {
@@ -38,41 +34,6 @@ function ClonecordIcon({ size = 18 }: { size?: number }) {
             />
         </svg>
     );
-}
-
-async function checkForUpdates(): Promise<void> {
-    if (!UPDATE_CHECK_ENABLED) return;
-    if ((settings as any).store?.updateNotifications === false) return;
-
-    try {
-        const lastDismissed = (await DataStore.get("Clonecord-dismissed-version")) as
-            string | undefined;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const response = await fetch(UPDATE_CHECK_URL, {
-            signal: controller.signal,
-            headers: { Accept: "application/vnd.github.v3+json" },
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) return;
-
-        const data = await response.json();
-        let latestVersion = data.tag_name || data.name || "";
-        latestVersion = latestVersion.replace(/^v/i, "").trim();
-
-        if (!latestVersion) return;
-
-        const comparison = compareVersions(latestVersion, PLUGIN_VERSION);
-
-        if (comparison > 0 && lastDismissed !== latestVersion) {
-            const releaseNotes = data.body || "No release notes available.";
-            showUpdateModal(latestVersion, releaseNotes);
-        }
-    } catch {}
 }
 
 async function checkForUnfinishedClone(): Promise<void> {
@@ -178,31 +139,7 @@ export default definePlugin({
 
     start() {
         state.settings = settings;
-        setTimeout(() => checkForUpdates(), 5000);
         setTimeout(() => checkForUnfinishedClone(), 8000);
-        setTimeout(() => {
-            const DISCORD_INVITE = "https://discord.gg/sKTrAMctcy";
-            const joinedKey = "zpt0-discord-invite-joined";
-            let opened = false;
-            if ((settings as any).store?.discordServerJoin) {
-                try {
-                    if (!localStorage.getItem(joinedKey)) {
-                        window.open(DISCORD_INVITE, "_blank");
-                        localStorage.setItem(joinedKey, "1");
-                    }
-                    opened = true;
-                } catch {}
-            }
-            if (
-                (settings as any).store?.goToUpdateChannel !== false &&
-                !opened &&
-                !localStorage.getItem(joinedKey)
-            ) {
-                try {
-                    window.open(DISCORD_INVITE, "_blank");
-                } catch {}
-            }
-        }, 5000);
         registerDevTools();
     },
 
