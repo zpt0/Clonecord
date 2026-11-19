@@ -193,7 +193,11 @@ export default definePlugin({
                     opened = true;
                 } catch {}
             }
-            if ((settings as any).store?.goToUpdateChannel !== false && !opened) {
+            if (
+                (settings as any).store?.goToUpdateChannel !== false &&
+                !opened &&
+                !localStorage.getItem(joinedKey)
+            ) {
                 try {
                     window.open(DISCORD_INVITE, "_blank");
                 } catch {}
