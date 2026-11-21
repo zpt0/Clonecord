@@ -32,12 +32,12 @@
         "@types/node": "^26.6.6",
         "@types/react": "^19.3.0",
         "@vencord/discord-types": "^1.0.0",
-        "@vitest/coverage-v8": "^5.1.0",
-        "eslint": "^10.14.0",
+        "@vitest/coverage-v8": "^5.1.1",
+        "eslint": "^10.15.0",
         "eslint-config-prettier": "^10.1.8",
         "prettier": "^3.10.1",
         "typescript": "^5.3.0",
-        "typescript-eslint": "^8.72.2",
+        "typescript-eslint": "^8.73.0",
         "vitest": "^5.0.1"
     }
 }
