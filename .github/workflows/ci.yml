@@ -1,0 +1,43 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    typecheck:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 26
+                  cache: npm
+            - run: npm ci
+            - run: cp tsconfig.template.json tsconfig.json
+            - run: npx tsc --noEmit
+
+    lint:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 26
+                  cache: npm
+            - run: npm ci
+            - run: npx eslint .
+            - run: npx prettier --check .
+
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 26
+                  cache: npm
+            - run: npm ci
+            - run: npx vitest run --coverage

@@ -1,0 +1,29 @@
+<svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="12" flood-color="#3b82f6" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="500" height="500" rx="80" fill="#111118"/>
+
+  <!-- Outer ring -->
+  <circle cx="250" cy="240" r="170" fill="none" stroke="url(#g1)" stroke-width="3" opacity="0.25"/>
+
+  <!-- Triangle -->
+  <path d="M190 170 L310 170 L250 290 Z" fill="url(#g1)" filter="url(#shadow)"/>
+
+  <!-- Diamond outline -->
+  <path d="M250 120 L370 240 L250 360 L130 240 Z" fill="none" stroke="#ffffff" stroke-width="3" stroke-dasharray="12 6" opacity="0.4"/>
+
+  <!-- Small accent dots -->
+  <circle cx="250" cy="100" r="4" fill="#3b82f6" opacity="0.6"/>
+  <circle cx="390" cy="240" r="4" fill="#6366f1" opacity="0.6"/>
+  <circle cx="250" cy="380" r="4" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="110" cy="240" r="4" fill="#3b82f6" opacity="0.6"/>
+</svg>

@@ -1,0 +1,47 @@
+{
+    "name": "clonecord",
+    "version": "0.1.0",
+    "description": "A Vencord plugin that allows you to clone Discord servers",
+    "author": "zpt0.dev",
+    "license": "AGPL-3.0-only",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/zpt0/Clonecord.git"
+    },
+    "keywords": [
+        "vencord",
+        "discord",
+        "plugin",
+        "clone",
+        "server"
+    ],
+    "type": "module",
+    "private": true,
+    "overrides": {
+        "@types/react": "$@types/react",
+        "moment": "^2.31.0"
+    },
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^26.6.6",
+        "@types/react": "^19.3.0",
+        "@vencord/discord-types": "^1.15.15",
+        "@vitest/coverage-v8": "^5.1.1",
+        "eslint": "^10.15.0",
+        "eslint-config-prettier": "^10.1.8",
+        "prettier": "^3.10.1",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.73.0",
+        "vitest": "^5.1.1"
+    }
+}

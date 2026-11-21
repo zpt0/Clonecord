@@ -1,0 +1,193 @@
+import { sleep, randomDelay } from "./helpers";
+import { state } from "../store";
+import { createScopedLogger } from "../foundation/core/logging";
+
+const log = createScopedLogger("utils/TaskQueue");
+
+export interface RateLimitStatus {
+    throttled: boolean;
+    throttledUntil: number;
+    throttledSecondsLeft: number;
+    consecutive429: number;
+    currentConcurrency: number;
+    maxConcurrency: number;
+    avgRequestMs: number;
+    completedRequests: number;
+}
+
+export class TaskQueue {
+    private maxConcurrency: number;
+    private currentConcurrency: number;
+    private activeWorkers = 0;
+    private pausedUntil = 0;
+    private consecutive429 = 0;
+    private successSinceScale = 0;
+    private completedRequests = 0;
+    private totalRequestMs = 0;
+
+    private requestTimestamps: number[] = [];
+    private static readonly WINDOW_MS = 5000;
+    private static readonly MAX_REQUESTS_PER_WINDOW = 5;
+    private static readonly MAX_CONSECUTIVE_429 = 15;
+    private static readonly SUCCESSES_TO_UPSCALE = 3;
+
+    constructor(concurrency = 5) {
+        this.maxConcurrency = concurrency;
+        this.currentConcurrency = Math.max(1, Math.floor(concurrency / 2));
+    }
+
+    getStatus(): RateLimitStatus {
+        const now = Date.now();
+        const throttled = now < this.pausedUntil;
+        return {
+            throttled,
+            throttledUntil: this.pausedUntil,
+            throttledSecondsLeft: throttled ? Math.ceil((this.pausedUntil - now) / 1000) : 0,
+            consecutive429: this.consecutive429,
+            currentConcurrency: this.currentConcurrency,
+            maxConcurrency: this.maxConcurrency,
+            avgRequestMs:
+                this.completedRequests > 0
+                    ? Math.round(this.totalRequestMs / this.completedRequests)
+                    : 0,
+            completedRequests: this.completedRequests,
+        };
+    }
+
+    private async waitForRateLimitWindow(exitCondition?: () => boolean): Promise<void> {
+        while (true) {
+            if (!state.isCloning) throw new Error("Cancelled");
+            if (exitCondition && exitCondition()) throw new Error("Skipped");
+
+            const now = Date.now();
+            this.requestTimestamps = this.requestTimestamps.filter(
+                (t) => now - t < TaskQueue.WINDOW_MS
+            );
+
+            if (this.requestTimestamps.length < TaskQueue.MAX_REQUESTS_PER_WINDOW) {
+                this.requestTimestamps.push(Date.now());
+                return;
+            }
+
+            const waitMs = this.requestTimestamps[0] + TaskQueue.WINDOW_MS - Date.now() + 50;
+            await sleep(Math.max(waitMs, 50));
+        }
+    }
+
+    async execute<T>(
+        fn: () => Promise<T>,
+        statusUpdateCb?: (msg: string) => void,
+        exitCondition?: () => boolean,
+        retries = 3
+    ): Promise<T> {
+        while (this.activeWorkers >= this.currentConcurrency || Date.now() < this.pausedUntil) {
+            if (!state.isCloning) throw new Error("Cancelled");
+            if (exitCondition && exitCondition()) throw new Error("Skipped");
+
+            if (Date.now() < this.pausedUntil) {
+                await sleep(Math.min(Math.max(100, this.pausedUntil - Date.now()), 500));
+            } else {
+                await sleep(50);
+            }
+        }
+
+        this.activeWorkers++;
+
+        try {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    if (!state.isCloning) throw new Error("Cancelled");
+                    if (exitCondition && exitCondition()) throw new Error("Skipped");
+
+                    if (Date.now() < this.pausedUntil) {
+                        await sleep(Math.max(100, this.pausedUntil - Date.now()));
+                        if (!state.isCloning) throw new Error("Cancelled");
+                    }
+
+                    await this.waitForRateLimitWindow(exitCondition);
+
+                    const startedAt = Date.now();
+                    const result = await fn();
+                    this.totalRequestMs += Date.now() - startedAt;
+                    this.completedRequests++;
+                    this.consecutive429 = 0;
+                    this.successSinceScale++;
+
+                    if (
+                        this.successSinceScale >= TaskQueue.SUCCESSES_TO_UPSCALE &&
+                        this.currentConcurrency < this.maxConcurrency
+                    ) {
+                        this.currentConcurrency++;
+                        this.successSinceScale = 0;
+                    }
+
+                    return result;
+                } catch (e: any) {
+                    if (!state.isCloning) throw new Error("Cancelled");
+                    if (exitCondition && exitCondition()) throw new Error("Skipped");
+                    if (e?.message === "Skipped" || e?.message === "Cancelled") throw e;
+
+                    if (e?.status === 429) {
+                        this.consecutive429++;
+                        this.successSinceScale = 0;
+
+                        const oldConcurrency = this.currentConcurrency;
+                        this.currentConcurrency = Math.max(
+                            1,
+                            Math.floor(this.currentConcurrency / 2)
+                        );
+                        if (oldConcurrency !== this.currentConcurrency) {
+                            log.warn(
+                                `429 — downscaling concurrency ${oldConcurrency} → ${this.currentConcurrency}`
+                            );
+                        }
+
+                        if (this.consecutive429 >= TaskQueue.MAX_CONSECUTIVE_429) {
+                            const err: any = new Error("RateLimitExhausted");
+                            err.rateLimitExhausted = true;
+                            throw err;
+                        }
+
+                        const retryAfter =
+                            (e.retry_after || e.body?.retry_after || 1) * 1000 +
+                            randomDelay(500, 1500);
+                        const newPauseUntil = Date.now() + retryAfter;
+
+                        if (newPauseUntil > this.pausedUntil) {
+                            this.pausedUntil = newPauseUntil;
+                            if (statusUpdateCb)
+                                statusUpdateCb(
+                                    `Rate limited — waiting ${Math.ceil(retryAfter / 1000)}s`
+                                );
+                        }
+
+                        await sleep(retryAfter);
+                        if (i < retries - 1) continue;
+                    }
+
+                    if (e?.status === 403) {
+                        let errorCode = e?.body?.code || 0;
+                        if (!errorCode && e?.text) {
+                            try {
+                                errorCode = JSON.parse(e.text)?.code || 0;
+                            } catch {}
+                        }
+                        if (errorCode === 50101) throw e;
+                        if (i < retries - 1) {
+                            await sleep(Math.min(2000 + i * 2000, 10000));
+                            continue;
+                        }
+                        throw e;
+                    }
+
+                    if (e?.status === 400) throw e;
+                    if (i === retries - 1) throw e;
+                    await sleep(1000 + randomDelay(500, 1000));
+                }
+            }
+            throw new Error("Max retries exceeded");
+        } finally {
+            this.activeWorkers--;
+        }
+    }
+}

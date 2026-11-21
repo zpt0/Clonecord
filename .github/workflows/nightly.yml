@@ -1,0 +1,70 @@
+name: Nightly
+
+on:
+    schedule:
+        - cron: "17 3 * * *"
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Generate notes and artifact without publishing a release"
+                type: boolean
+                default: false
+
+permissions:
+    contents: write
+
+concurrency:
+    group: nightly-${{ github.repository }}-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    nightly:
+        if: github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+                  fetch-tags: true
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 26
+                  cache: npm
+            - run: npm ci
+            - name: Set up tsconfig
+              run: cp tsconfig.template.json tsconfig.json
+            - name: Validate
+              run: |
+                  npm run typecheck
+                  npm run lint
+                  npm run format:check
+                  npm test -- --coverage
+            - name: Generate release notes
+              id: notes
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: node .github/scripts/generate-release-notes.mjs
+            - name: Build source archive
+              run: git archive --format=zip --output "${{ steps.notes.outputs.zip_name }}" HEAD
+            - name: Upload source archive
+              uses: actions/upload-artifact@v7
+              with:
+                  name: ${{ steps.notes.outputs.zip_name }}
+                  path: ${{ steps.notes.outputs.zip_name }}
+                  if-no-files-found: error
+            - name: Publish nightly release
+              if: ${{ !inputs.dry_run }}
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG: ${{ steps.notes.outputs.tag }}
+                  TITLE: ${{ steps.notes.outputs.title }}
+                  ZIP: ${{ steps.notes.outputs.zip_name }}
+              run: |
+                  gh release create "$TAG" "$ZIP" \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --title "$TITLE" \
+                    --notes-file nightly-release-notes.md \
+                    --prerelease \
+                    --target "$GITHUB_SHA"
+            - name: Show release notes
+              run: cat nightly-release-notes.md >> "$GITHUB_STEP_SUMMARY"

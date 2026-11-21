@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+    - name: Known issue — channels can't be cloned
+      url: https://github.com/zpt0/Clonecord#readme
+      about: >-
+          Discord redacts channels your account cannot view (name "___hidden___").
+          They cannot be cloned by any plugin. This is not a bug — grant the
+          cloning account the missing View Channel roles instead.
+    - name: Vencord Documentation
+      url: https://docs.vencord.dev/
+      about: Check the Vencord docs for general questions about Vencord itself.

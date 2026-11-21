@@ -1,0 +1,1135 @@
+import {
+    React,
+    GuildStore,
+    GuildRoleStore,
+    UserStore,
+    SearchableSelect,
+    Checkbox,
+    RestAPI,
+    Modal,
+    ConfirmModal,
+    openModal,
+    type ModalAction,
+    type RenderModalProps,
+} from "@webpack/common";
+import { Guild } from "@vencord/discord-types";
+import { CloneOptions } from "../types";
+import { DataStore } from "@api/index";
+import { extractChannels } from "../utils/api";
+import { getTheme, Theme } from "@utils/discord";
+
+function ConfirmOverwriteModal({
+    props,
+    targetName,
+    sourceName,
+    deletingText,
+    onConfirm,
+}: {
+    props: RenderModalProps;
+    targetName: string;
+    sourceName: string;
+    deletingText: string;
+    onConfirm: () => void;
+}) {
+    const themeClass = getTheme() === Theme.Light ? "theme-light" : "theme-dark";
+    return (
+        <ConfirmModal
+            {...props}
+            title={
+                <span className="cc-modal-title" style={{ color: "var(--status-danger)" }}>
+                    Confirm Overwrite
+                </span>
+            }
+            confirmText="Delete & Overwrite"
+            variant="critical-primary"
+            onConfirm={onConfirm}
+        >
+            <div className={themeClass}>
+                <div className="cc-modal-text" style={{ padding: "16px 0" }}>
+                    <p>
+                        This will{" "}
+                        <strong style={{ color: "var(--status-danger)" }}>
+                            permanently delete
+                        </strong>{" "}
+                        all {deletingText} in <strong>{targetName}</strong> and replace them with
+                        data from <strong>{sourceName}</strong>.
+                    </p>
+                    <p className="cc-modal-subtext" style={{ marginTop: "12px" }}>
+                        This action cannot be undone.
+                    </p>
+                </div>
+            </div>
+        </ConfirmModal>
+    );
+}
+
+function BoostWarning({
+    guild,
+    targetGuildId,
+    sourceStickersCount,
+    sourceSoundsCount,
+}: {
+    guild: Guild;
+    targetGuildId: string | null;
+    sourceStickersCount: number;
+    sourceSoundsCount: number;
+}) {
+    const boostFeatures = React.useMemo(() => {
+        const features: string[] = [];
+        if ((guild as any).banner) features.push("Server Banner (Level 2)");
+        if ((guild as any).splash) features.push("Invite Splash (Level 2)");
+        const roles = GuildRoleStore.getSortedRoles(guild.id) || [];
+        if (roles.some((r: any) => r.icon)) features.push("Role Icons (Level 2)");
+        if (((guild as any).premiumTier || 0) >= 1) features.push("High Bitrate Voice (Level 1+)");
+        if (sourceStickersCount > 0)
+            features.push(`Custom Stickers (${sourceStickersCount} items)`);
+        if (sourceSoundsCount > 0) features.push(`Soundboard Sounds (${sourceSoundsCount} items)`);
+        return features;
+    }, [guild.id, sourceStickersCount, sourceSoundsCount]);
+
+    if (boostFeatures.length === 0) return null;
+
+    const sourceTier = (guild as any).premiumTier || 0;
+    const targetGuild = targetGuildId ? GuildStore.getGuild(targetGuildId) : null;
+    const targetTier = targetGuild ? (targetGuild as any).premiumTier || 0 : 0;
+    const isNewServer = !targetGuildId;
+
+    if (!isNewServer && targetTier >= sourceTier && targetTier >= 3) return null;
+
+    const getStickerLimit = (tier: number) =>
+        tier === 0 ? 5 : tier === 1 ? 15 : tier === 2 ? 30 : 60;
+    const getSoundLimit = (tier: number) =>
+        tier === 0 ? 8 : tier === 1 ? 24 : tier === 2 ? 36 : 48;
+
+    return (
+        <div
+            style={{
+                background: "rgba(250,166,26,0.06)",
+                border: "1px solid rgba(250,166,26,0.22)",
+                padding: "12px",
+                borderRadius: "8px",
+            }}
+        >
+            <strong
+                className="cc-modal-title-bold"
+                style={{ display: "block", marginBottom: "6px", color: "#faa61a" }}
+            >
+                Boost-Dependent Features:
+            </strong>
+            <div className="cc-modal-text" style={{ lineHeight: 1.6 }}>
+                {boostFeatures.map((f, i) => (
+                    <div key={i}>
+                        {"\u2022"} {f}
+                    </div>
+                ))}
+            </div>
+            <div
+                className="cc-modal-subtext"
+                style={{ marginTop: "8px", fontStyle: "italic", color: "#faa61a" }}
+            >
+                {isNewServer
+                    ? `New servers start at Level 0 (max ${getStickerLimit(0)} stickers, ${getSoundLimit(0)} soundboard slots). Remaining items will be skipped.`
+                    : `Target server is Level ${targetTier} (max ${getStickerLimit(targetTier)} stickers, ${getSoundLimit(targetTier)} sounds).`}
+            </div>
+        </div>
+    );
+}
+
+function ModeButton({
+    label,
+    active,
+    color,
+    onClick,
+}: {
+    label: string;
+    active: boolean;
+    color: string;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                flex: 1,
+                padding: "10px",
+                borderRadius: "8px",
+                border: `2px solid ${active ? color : "var(--background-modifier-accent)"}`,
+                background: active ? `${color}22` : "var(--background-secondary)",
+                color: active ? color : "var(--text-muted)",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: "13px",
+                fontFamily: "var(--font-primary), 'gg sans', sans-serif",
+                transition: "border-color 0.15s ease, background 0.15s ease, color 0.15s ease",
+            }}
+        >
+            {label}
+        </button>
+    );
+}
+
+export const CloneModal = ({
+    props,
+    guild,
+    onClone,
+    initialOptions,
+}: {
+    props: RenderModalProps;
+    guild: Guild;
+    onClone: (options: CloneOptions) => void;
+    initialOptions?: Partial<CloneOptions>;
+}) => {
+    const [cloneChannels, setCloneChannels] = React.useState(initialOptions?.cloneChannels ?? true);
+    const [cloneRoles, setCloneRoles] = React.useState(initialOptions?.cloneRoles ?? true);
+    const [cloneOnboarding, setCloneOnboarding] = React.useState(
+        initialOptions?.cloneOnboarding ?? true
+    );
+    const [cloneSystemFlags, setCloneSystemFlags] = React.useState(
+        initialOptions?.cloneSystemFlags ?? true
+    );
+    const [cloneStickers, setCloneStickers] = React.useState(initialOptions?.cloneStickers ?? true);
+    const [cloneSoundboard, setCloneSoundboard] = React.useState(
+        initialOptions?.cloneSoundboard ?? true
+    );
+    const [cloneEmojis, setCloneEmojis] = React.useState(initialOptions?.cloneEmojis ?? false);
+    const [sourceEmojisCount, setSourceEmojisCount] = React.useState(0);
+
+    const [view, setView] = React.useState<"main" | "select">("main");
+    const [selectedChannelIds, setSelectedChannelIds] = React.useState<string[] | null>(
+        initialOptions?.selectedChannelIds ?? null
+    );
+    const [selectedRoleIds, setSelectedRoleIds] = React.useState<string[] | null>(
+        initialOptions?.selectedRoleIds ?? null
+    );
+    const [selectionSearch, setSelectionSearch] = React.useState("");
+    const [resumeMode, setResumeMode] = React.useState(initialOptions?.resumeMode ?? false);
+    const [targetGuildId, setTargetGuildId] = React.useState<string | null>(null);
+    const [sourceStickersCount, setSourceStickersCount] = React.useState(0);
+    const [sourceSoundsCount, setSourceSoundsCount] = React.useState(0);
+    const [targetChannelCount, setTargetChannelCount] = React.useState(0);
+    const [targetRoleCount, setTargetRoleCount] = React.useState(0);
+
+    React.useEffect(() => {
+        RestAPI.get({ url: `/guilds/${guild.id}/stickers` })
+            .then((resp: any) => {
+                const list = resp.body || [];
+                setSourceStickersCount(list.length);
+            })
+            .catch(() => {});
+
+        RestAPI.get({ url: `/guilds/${guild.id}/soundboard-sounds` })
+            .then((resp: any) => {
+                const list = resp.body?.items || resp.body || [];
+                setSourceSoundsCount(list.length);
+            })
+            .catch(() => {});
+
+        RestAPI.get({ url: `/guilds/${guild.id}/emojis` })
+            .then((resp: any) => {
+                const list = resp.body || [];
+                setSourceEmojisCount(list.length);
+            })
+            .catch(() => {});
+    }, [guild.id]);
+
+    React.useEffect(() => {
+        if (targetGuildId) {
+            const targetChannels = extractChannels(targetGuildId, true);
+            setTargetChannelCount(targetChannels.length);
+            const targetRoles = (GuildRoleStore.getSortedRoles(targetGuildId) || []).filter(
+                (r: any) => r.name !== "@everyone"
+            );
+            setTargetRoleCount(targetRoles.length);
+        } else {
+            setTargetChannelCount(0);
+            setTargetRoleCount(0);
+        }
+    }, [targetGuildId]);
+
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const saved = (await DataStore.get(`Clonecord-selection-${guild.id}`)) as any;
+                if (saved) {
+                    setSelectedChannelIds(
+                        Array.isArray(saved.channelIds) ? saved.channelIds : null
+                    );
+                    setSelectedRoleIds(Array.isArray(saved.roleIds) ? saved.roleIds : null);
+                }
+            } catch {}
+        })();
+    }, [guild.id]);
+
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            DataStore.set(`Clonecord-selection-${guild.id}`, {
+                channelIds: selectedChannelIds,
+                roleIds: selectedRoleIds,
+            }).catch(() => {});
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [selectedChannelIds, selectedRoleIds, guild.id]);
+    const canOnboarding = cloneChannels && cloneRoles;
+
+    const targetTierForEmojis = targetGuildId
+        ? (GuildStore.getGuild(targetGuildId) as any)?.premiumTier || 0
+        : 0;
+    const emojiSlots = [50, 100, 150, 250][targetTierForEmojis] ?? 50;
+    const showEmojiToggle = sourceEmojisCount > emojiSlots;
+
+    React.useEffect(() => {
+        if (!canOnboarding) setCloneOnboarding(false);
+    }, [canOnboarding]);
+
+    const ownedGuilds = React.useMemo(
+        () =>
+            (Object.values(GuildStore.getGuilds()) as Guild[]).filter(
+                (g) => g.id !== guild.id && g.ownerId === UserStore.getCurrentUser()?.id
+            ),
+        [guild.id]
+    );
+
+    const noChannelsSelected = Array.isArray(selectedChannelIds) && selectedChannelIds.length === 0;
+    const noRolesSelected = Array.isArray(selectedRoleIds) && selectedRoleIds.length === 0;
+
+    const hasCoreWork =
+        (cloneChannels && !noChannelsSelected) ||
+        (cloneRoles && !noRolesSelected) ||
+        cloneOnboarding ||
+        cloneSystemFlags ||
+        cloneStickers ||
+        cloneSoundboard;
+    const nothingSelected = !hasCoreWork;
+
+    const estimatedSeconds = React.useMemo(() => {
+        const allRolesCount = (GuildRoleStore.getSortedRoles(guild.id) || []).filter(
+            (r: any) => r.name !== "@everyone"
+        ).length;
+        const roleCount = cloneRoles
+            ? selectedRoleIds === null
+                ? allRolesCount
+                : selectedRoleIds.length
+            : 0;
+        const allChannelsCount = extractChannels(guild.id, true).length;
+        const channelCount = cloneChannels
+            ? selectedChannelIds === null
+                ? allChannelsCount
+                : selectedChannelIds.length
+            : 0;
+        const onboardingEst = cloneOnboarding ? 2 : 0;
+        const stickerEst = cloneStickers ? sourceStickersCount : 0;
+        const soundboardEst = cloneSoundboard ? sourceSoundsCount : 0;
+        const emojiEst = cloneEmojis ? sourceEmojisCount : 0;
+
+        const perItemDelay = 1.5;
+        const setupTime = 5;
+        const deleteTime =
+            targetGuildId && !resumeMode
+                ? channelCount * 1.2 + roleCount * 1.2 + stickerEst * 1.0 + soundboardEst * 1.0
+                : 0;
+
+        const totalSeconds =
+            setupTime +
+            deleteTime +
+            (roleCount + channelCount + onboardingEst + stickerEst + soundboardEst + emojiEst) *
+                perItemDelay;
+
+        return totalSeconds;
+    }, [
+        guild.id,
+        cloneRoles,
+        cloneChannels,
+        cloneOnboarding,
+        cloneStickers,
+        cloneSoundboard,
+        cloneEmojis,
+        selectedChannelIds,
+        selectedRoleIds,
+        sourceStickersCount,
+        sourceSoundsCount,
+        sourceEmojisCount,
+        targetGuildId,
+        resumeMode,
+    ]);
+
+    const estimatedTime = React.useMemo(() => {
+        const totalSeconds = estimatedSeconds;
+        if (totalSeconds < 60) return `~${Math.ceil(totalSeconds)}s`;
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = Math.ceil(totalSeconds % 60);
+        return secs > 0 ? `~${mins}m ${secs}s` : `~${mins}m`;
+    }, [estimatedSeconds]);
+
+    const estimatedColor = React.useMemo(() => {
+        if (estimatedSeconds < 60) return "#43b581";
+        if (estimatedSeconds < 300) return "#faa61a";
+        return "#ed4245";
+    }, [estimatedSeconds]);
+
+    const handleTargetChange = React.useCallback((v: string) => {
+        setTargetGuildId(v === "new" ? null : v);
+        if (v === "new") setResumeMode(false);
+    }, []);
+
+    const handleClone = React.useCallback(() => {
+        if (nothingSelected) return;
+
+        if (targetGuildId && !resumeMode) {
+            const targetName =
+                ownedGuilds.find((g: Guild) => g.id === targetGuildId)?.name ?? "the target server";
+            const deletingParts: string[] = [];
+            if (cloneChannels) deletingParts.push("channels");
+            if (cloneRoles) deletingParts.push("roles");
+            if (cloneStickers) deletingParts.push("stickers");
+            if (cloneSoundboard) deletingParts.push("soundboard sounds");
+
+            props.onClose();
+            openModal((confirmProps: RenderModalProps) => (
+                <ConfirmOverwriteModal
+                    props={confirmProps}
+                    targetName={targetName}
+                    sourceName={guild.name}
+                    deletingText={deletingParts.join(", ")}
+                    onConfirm={() =>
+                        onClone({
+                            cloneChannels,
+                            cloneRoles,
+                            cloneOnboarding,
+                            cloneSystemFlags,
+                            cloneStickers,
+                            cloneSoundboard,
+                            cloneEmojis,
+                            selectedChannelIds,
+                            selectedRoleIds,
+                            resumeMode: false,
+                            targetGuildId,
+                        })
+                    }
+                />
+            ));
+        } else {
+            onClone({
+                cloneChannels,
+                cloneRoles,
+                cloneOnboarding,
+                cloneSystemFlags,
+                cloneStickers,
+                cloneSoundboard,
+                cloneEmojis,
+                selectedChannelIds,
+                selectedRoleIds,
+                resumeMode,
+                targetGuildId,
+            });
+            props.onClose();
+        }
+    }, [
+        nothingSelected,
+        targetGuildId,
+        resumeMode,
+        cloneChannels,
+        cloneRoles,
+        cloneOnboarding,
+        cloneSystemFlags,
+        cloneStickers,
+        cloneSoundboard,
+        cloneEmojis,
+        selectedChannelIds,
+        selectedRoleIds,
+        guild.name,
+        ownedGuilds,
+        onClone,
+        props,
+    ]);
+
+    const allChannels = React.useMemo(
+        () => extractChannels(guild.id, true).filter((ch: any) => ch?.name !== "___hidden___"),
+        [guild.id]
+    );
+    const hiddenChannelCount = React.useMemo(
+        () =>
+            extractChannels(guild.id, true).filter((ch: any) => ch?.name === "___hidden___").length,
+        [guild.id]
+    );
+    const allRoles = React.useMemo(
+        () =>
+            (GuildRoleStore.getSortedRoles(guild.id) || []).filter(
+                (r: any) => r.name !== "@everyone"
+            ),
+        [guild.id]
+    );
+
+    const isChannelSelected = React.useCallback(
+        (id: string) => selectedChannelIds === null || selectedChannelIds.includes(id),
+        [selectedChannelIds]
+    );
+    const isRoleSelected = React.useCallback(
+        (id: string) => selectedRoleIds === null || selectedRoleIds.includes(id),
+        [selectedRoleIds]
+    );
+
+    const toggleChannel = React.useCallback(
+        (id: string) => {
+            setSelectedChannelIds((prev) => {
+                const baseIds = allChannels.map((c: any) => c.id);
+                const current = prev === null ? [...baseIds] : [...prev];
+                if (current.includes(id)) {
+                    return current.filter((x) => x !== id);
+                }
+                return [...current, id];
+            });
+        },
+        [allChannels]
+    );
+
+    const toggleCategory = React.useCallback(
+        (cat: any) => {
+            const childIds = allChannels
+                .filter((c: any) => c.parent_id === cat.id)
+                .map((c: any) => c.id);
+            setSelectedChannelIds((prev) => {
+                const baseIds = allChannels.map((c: any) => c.id);
+                const current = prev === null ? [...baseIds] : [...prev];
+                const isSelected = current.includes(cat.id);
+                if (isSelected) {
+                    return current.filter((id) => id !== cat.id && !childIds.includes(id));
+                }
+                const next = new Set(current);
+                next.add(cat.id);
+                childIds.forEach((id) => next.add(id));
+                return [...next];
+            });
+        },
+        [allChannels]
+    );
+
+    const toggleRole = React.useCallback(
+        (id: string) => {
+            setSelectedRoleIds((prev) => {
+                const baseIds = allRoles.map((r: any) => r.id);
+                const current = prev === null ? [...baseIds] : [...prev];
+                if (current.includes(id)) {
+                    return current.filter((x) => x !== id);
+                }
+                return [...current, id];
+            });
+        },
+        [allRoles]
+    );
+
+    const selectOptions = React.useMemo(
+        () => [
+            { value: "new", label: "Create New Server" },
+            ...ownedGuilds.map((g: Guild) => ({ value: g.id, label: g.name })),
+        ],
+        [ownedGuilds]
+    );
+
+    const selectValue = targetGuildId ?? "new";
+
+    const themeClass = getTheme() === Theme.Light ? "theme-light" : "theme-dark";
+
+    const guildIconUrl = guild.icon
+        ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64`
+        : null;
+
+    // Discord redacts channels the cloning account cannot view (name "___hidden___"),
+    // so they are excluded from the clone — report them instead of faking a count.
+    const sourceChannelCount = cloneChannels ? allChannels.length : 0;
+    const sourceRoleCount = cloneRoles
+        ? (GuildRoleStore.getSortedRoles(guild.id) || []).filter((r: any) => r.name !== "@everyone")
+              .length
+        : 0;
+
+    const isOverwrite = !!targetGuildId && !resumeMode;
+    const isResume = !!targetGuildId && resumeMode;
+
+    const channelsToCreate = isOverwrite
+        ? sourceChannelCount
+        : isResume
+          ? Math.max(0, sourceChannelCount - targetChannelCount)
+          : 0;
+    const channelsToDelete = isOverwrite ? targetChannelCount : 0;
+    const rolesToCreate = isOverwrite
+        ? sourceRoleCount
+        : isResume
+          ? Math.max(0, sourceRoleCount - targetRoleCount)
+          : 0;
+    const rolesToDelete = isOverwrite ? targetRoleCount : 0;
+
+    const actions: ModalAction[] = [
+        { text: "Cancel", variant: "secondary", onClick: props.onClose },
+        {
+            text: "Clone Server",
+            variant: "primary",
+            onClick: handleClone,
+            disabled: nothingSelected,
+        },
+    ];
+
+    return (
+        <Modal
+            {...props}
+            size="lg"
+            title={
+                <div className={themeClass}>
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            width: "100%",
+                        }}
+                    >
+                        {view === "select" && (
+                            <button
+                                onClick={() => setView("main")}
+                                className="cc-select-back-btn"
+                                title="Back"
+                            >
+                                ← Back
+                            </button>
+                        )}
+                        {view === "main" ? (
+                            <div className="cc-modal-guild-header" style={{ flex: 1 }}>
+                                {guildIconUrl ? (
+                                    <img
+                                        src={guildIconUrl}
+                                        alt=""
+                                        className="cc-modal-guild-icon"
+                                        width={40}
+                                        height={40}
+                                    />
+                                ) : (
+                                    <div className="cc-modal-guild-icon cc-modal-guild-icon-placeholder">
+                                        {guild.name.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                <div className="cc-modal-guild-info">
+                                    <span className="cc-modal-title">
+                                        Clone Server: {guild.name}
+                                    </span>
+                                    <div className="cc-modal-stats-row">
+                                        <span className="cc-modal-stat-badge">
+                                            # {sourceChannelCount} channels
+                                        </span>
+                                        <span className="cc-modal-stat-badge">
+                                            @ {sourceRoleCount} roles
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="cc-modal-title" style={{ flex: 1 }}>
+                                Select Channels &amp; Roles
+                            </span>
+                        )}
+                        {view === "main" && (
+                            <button
+                                onClick={() => setView("select")}
+                                className="cc-select-toggle"
+                                title="Select channels & roles to clone"
+                            >
+                                ☑ Select
+                            </button>
+                        )}
+                    </div>
+                </div>
+            }
+            actions={actions}
+            actionBarInput={
+                !nothingSelected ? (
+                    <div style={{ fontSize: "12px", color: estimatedColor, fontWeight: 600 }}>
+                        Estimated time: {estimatedTime}
+                    </div>
+                ) : undefined
+            }
+        >
+            <div className={themeClass}>
+                {view === "select" ? (
+                    <div
+                        className="cc-select-view"
+                        style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "12px",
+                            padding: "8px 0",
+                            minHeight: "450px",
+                        }}
+                    >
+                        <input
+                            type="text"
+                            className="cc-select-search"
+                            placeholder="Search channels or roles..."
+                            value={selectionSearch}
+                            onChange={(e) => setSelectionSearch(e.target.value)}
+                        />
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <button
+                                onClick={() => {
+                                    setSelectedChannelIds(null);
+                                    setSelectedRoleIds(null);
+                                }}
+                                className="cc-select-toolbar-btn"
+                            >
+                                Select all
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setSelectedChannelIds([]);
+                                    setSelectedRoleIds([]);
+                                }}
+                                className="cc-select-toolbar-btn"
+                            >
+                                Select none
+                            </button>
+                            <span className="cc-select-counter">
+                                {selectedChannelIds === null
+                                    ? allChannels.length
+                                    : selectedChannelIds.length}{" "}
+                                / {allChannels.length} channels,{" "}
+                                {selectedRoleIds === null
+                                    ? allRoles.length
+                                    : selectedRoleIds.length}{" "}
+                                / {allRoles.length} roles
+                            </span>
+                        </div>
+
+                        <div className="cc-select-section-title">Channels</div>
+                        <div
+                            style={{
+                                maxHeight: "220px",
+                                overflowY: "auto",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "4px",
+                            }}
+                        >
+                            {(() => {
+                                const q = selectionSearch.toLowerCase();
+                                const cats = allChannels
+                                    .filter((c: any) => c.type === 4)
+                                    .sort((a: any, b: any) => a.position - b.position);
+                                const items: any[] = [];
+                                for (const cat of cats) {
+                                    const catChannels = allChannels
+                                        .filter(
+                                            (c: any) =>
+                                                c.type !== 4 &&
+                                                c.parent_id === cat.id &&
+                                                (!q || c.name.toLowerCase().includes(q))
+                                        )
+                                        .sort((a: any, b: any) => a.position - b.position);
+                                    if (
+                                        catChannels.length === 0 &&
+                                        q &&
+                                        !cat.name.toLowerCase().includes(q)
+                                    )
+                                        continue;
+                                    items.push(
+                                        <div key={cat.id} style={{ marginTop: "12px" }}>
+                                            <label
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                    padding: "4px 6px",
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontWeight: 600,
+                                                    fontSize: "12px",
+                                                    color: "var(--text-muted)",
+                                                    paddingBottom: "4px",
+                                                    borderBottom:
+                                                        "1px solid var(--background-modifier-accent)",
+                                                    marginBottom: "4px",
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChannelSelected(cat.id)}
+                                                    onChange={() => toggleCategory(cat)}
+                                                />
+                                                <span>{cat.name}</span>
+                                            </label>
+                                            {catChannels.map((ch: any) => (
+                                                <label
+                                                    key={ch.id}
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "8px",
+                                                        padding: "4px 0",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChannelSelected(ch.id)}
+                                                        onChange={() => toggleChannel(ch.id)}
+                                                    />
+                                                    <span style={{ fontSize: "13px" }}>
+                                                        {ch.name}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    );
+                                }
+                                const uncategorized = allChannels
+                                    .filter(
+                                        (c: any) =>
+                                            c.type !== 4 &&
+                                            !cats.some((cat: any) => cat.id === c.parent_id) &&
+                                            (!q || c.name.toLowerCase().includes(q))
+                                    )
+                                    .sort((a: any, b: any) => a.position - b.position);
+                                if (uncategorized.length > 0) {
+                                    items.push(
+                                        <div key="uncat" style={{ marginTop: "6px" }}>
+                                            {uncategorized.map((ch: any) => (
+                                                <label
+                                                    key={ch.id}
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "8px",
+                                                        padding: "4px 0",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChannelSelected(ch.id)}
+                                                        onChange={() => toggleChannel(ch.id)}
+                                                    />
+                                                    <span style={{ fontSize: "13px" }}>
+                                                        {ch.name}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    );
+                                }
+                                return items;
+                            })()}
+                        </div>
+
+                        <div className="cc-select-section-title">Roles</div>
+                        <div
+                            style={{
+                                maxHeight: "180px",
+                                overflowY: "auto",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "4px",
+                            }}
+                        >
+                            {allRoles
+                                .filter(
+                                    (r: any) =>
+                                        !selectionSearch ||
+                                        r.name.toLowerCase().includes(selectionSearch.toLowerCase())
+                                )
+                                .map((role: any) => (
+                                    <label
+                                        key={role.id}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "8px",
+                                            padding: "4px 0",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isRoleSelected(role.id)}
+                                            onChange={() => toggleRole(role.id)}
+                                        />
+                                        <span style={{ fontSize: "13px" }}>{role.name}</span>
+                                    </label>
+                                ))}
+                        </div>
+                        <div className="cc-select-saved">Selections are saved automatically.</div>
+                    </div>
+                ) : (
+                    <div
+                        style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "16px",
+                            padding: "8px 0",
+                            minHeight: "450px",
+                        }}
+                    >
+                        <div>
+                            <span className="cc-modal-label">Clone To:</span>
+                            <SearchableSelect
+                                options={selectOptions}
+                                value={selectValue}
+                                placeholder="Select destination..."
+                                maxVisibleItems={5}
+                                closeOnSelect={true}
+                                onChange={handleTargetChange}
+                            />
+                            {targetGuildId && !resumeMode && (
+                                <div
+                                    className="cc-modal-subtext"
+                                    style={{
+                                        color: "var(--status-danger)",
+                                        marginTop: "6px",
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Warning: Selected items in the target server will be deleted and
+                                    replaced!
+                                </div>
+                            )}
+                            {targetGuildId && resumeMode && (
+                                <div
+                                    className="cc-modal-subtext"
+                                    style={{
+                                        color: "var(--text-positive)",
+                                        marginTop: "6px",
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    Resume mode: Only missing items will be added, nothing will be
+                                    deleted.
+                                </div>
+                            )}
+                            {targetGuildId && isOverwrite && (
+                                <div className="cc-modal-diff-badge">
+                                    {channelsToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{channelsToCreate} channels
+                                        </span>
+                                    )}
+                                    {channelsToDelete > 0 && (
+                                        <span className="cc-modal-diff-negative">
+                                            -{channelsToDelete} channels
+                                        </span>
+                                    )}
+                                    {rolesToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{rolesToCreate} roles
+                                        </span>
+                                    )}
+                                    {rolesToDelete > 0 && (
+                                        <span className="cc-modal-diff-negative">
+                                            -{rolesToDelete} roles
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            {targetGuildId && isResume && (
+                                <div className="cc-modal-diff-badge">
+                                    {channelsToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{channelsToCreate} channels to add
+                                        </span>
+                                    )}
+                                    {rolesToCreate > 0 && (
+                                        <span className="cc-modal-diff-positive">
+                                            +{rolesToCreate} roles to add
+                                        </span>
+                                    )}
+                                    {channelsToCreate === 0 && rolesToCreate === 0 && (
+                                        <span className="cc-modal-diff-neutral">
+                                            All items already exist
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {targetGuildId && (
+                            <div style={{ display: "flex", gap: "8px" }}>
+                                <ModeButton
+                                    label="Overwrite"
+                                    active={!resumeMode}
+                                    color="#5865f2"
+                                    onClick={() => setResumeMode(false)}
+                                />
+                                <ModeButton
+                                    label="Resume"
+                                    active={resumeMode}
+                                    color="#43b581"
+                                    onClick={() => setResumeMode(true)}
+                                />
+                            </div>
+                        )}
+
+                        <div className="cc-modal-note-box">
+                            <strong>Note:</strong> Server Icon, Name, Banner, Splash, Description
+                            {cloneSystemFlags ? ", and System Channel Flags" : ""} will always be
+                            cloned.
+                        </div>
+
+                        {cloneChannels && hiddenChannelCount > 0 && (
+                            <div
+                                className="cc-modal-subtext"
+                                style={{
+                                    color: "var(--status-danger)",
+                                    fontWeight: 600,
+                                    lineHeight: 1.5,
+                                }}
+                            >
+                                {hiddenChannelCount} channel
+                                {hiddenChannelCount === 1 ? "" : "s"} can't be cloned (hidden by
+                                Discord) — your account lacks View Channel access.
+                            </div>
+                        )}
+
+                        <div>
+                            <span className="cc-modal-label">Core:</span>
+                            <Checkbox
+                                value={cloneChannels}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneChannels(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Channels
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    All channel types with topics, positions, and settings
+                                </span>
+                            </Checkbox>
+
+                            <Checkbox
+                                value={cloneRoles}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneRoles(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Roles
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    With permissions, colors, and icons
+                                </span>
+                            </Checkbox>
+                        </div>
+
+                        <div>
+                            <span className="cc-modal-label">Assets:</span>
+                            <Checkbox
+                                value={cloneStickers}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneStickers(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Stickers
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    Custom stickers (limited by boost level)
+                                </span>
+                            </Checkbox>
+
+                            <Checkbox
+                                value={cloneSoundboard}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneSoundboard(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Soundboard
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    Custom soundboard sounds (limited by boost level)
+                                </span>
+                            </Checkbox>
+                        </div>
+
+                        <div>
+                            <span className="cc-modal-label">Server Settings:</span>
+                            <Checkbox
+                                value={cloneOnboarding}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneOnboarding(val)}
+                                disabled={!canOnboarding}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    Onboarding
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    {canOnboarding
+                                        ? "Welcome prompts, default channels, and customization"
+                                        : "Requires both Channels and Roles"}
+                                </span>
+                            </Checkbox>
+
+                            <Checkbox
+                                value={cloneSystemFlags}
+                                type="inverted"
+                                onChange={(_: any, val: boolean) => setCloneSystemFlags(val)}
+                            >
+                                <span className="cc-modal-title-bold" style={{ fontWeight: 500 }}>
+                                    System Channel Flags
+                                </span>
+                                <span
+                                    className="cc-modal-subtext"
+                                    style={{ display: "block", marginTop: "2px" }}
+                                >
+                                    Join/boost notification toggles
+                                </span>
+                            </Checkbox>
+                        </div>
+
+                        <BoostWarning
+                            guild={guild}
+                            targetGuildId={targetGuildId}
+                            sourceStickersCount={sourceStickersCount}
+                            sourceSoundsCount={sourceSoundsCount}
+                        />
+
+                        {showEmojiToggle && (
+                            <div
+                                style={{
+                                    background: "rgba(88,101,242,0.06)",
+                                    border: "1px solid rgba(88,101,242,0.22)",
+                                    padding: "12px",
+                                    borderRadius: "8px",
+                                }}
+                            >
+                                <Checkbox
+                                    value={cloneEmojis}
+                                    type="inverted"
+                                    onChange={(_: any, val: boolean) => setCloneEmojis(val)}
+                                >
+                                    <span
+                                        className="cc-modal-title-bold"
+                                        style={{ fontWeight: 500 }}
+                                    >
+                                        Alle Custom-Emojis klonen ({sourceEmojisCount})
+                                    </span>
+                                    <span
+                                        className="cc-modal-subtext"
+                                        style={{ display: "block", marginTop: "2px" }}
+                                    >
+                                        Standardmäßig nur verwendete Emojis. Kann länger dauern und
+                                        Rate-Limits auslösen.
+                                    </span>
+                                </Checkbox>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </Modal>
+    );
+};

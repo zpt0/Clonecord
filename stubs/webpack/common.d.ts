@@ -1,0 +1,176 @@
+declare module "@webpack/common" {
+    import React from "react";
+    import type { ComponentType, ReactNode } from "react";
+
+    export interface RenderModalProps {
+        transitionState: number;
+        onClose(): void;
+    }
+
+    export interface ModalAction {
+        text: string;
+        variant?: string;
+        onClick(): void;
+        loading?: boolean;
+        disabled?: boolean;
+    }
+
+    export interface ModalProps extends RenderModalProps {
+        title: ReactNode;
+        subtitle?: ReactNode;
+        size?: string;
+        children?: ReactNode;
+        actions?: ModalAction[];
+        actionBarInput?: ReactNode;
+    }
+
+    export interface ConfirmModalProps extends ModalProps {
+        variant?: string;
+        confirmText: string;
+        cancelText?: string;
+        onConfirm?(): void;
+        onCancel?(): void;
+    }
+
+    const Modal: ComponentType<ModalProps>;
+    const ConfirmModal: ComponentType<ConfirmModalProps>;
+
+    export function openModal(render: (props: RenderModalProps) => ReactNode): string;
+    export function closeModal(key: string): void;
+    export function closeAllModals(): void;
+
+    export interface ToastOptions {
+        text: string;
+        variant?: "success" | "critical" | "warning" | "info";
+        position?: "top" | "bottom";
+    }
+
+    export function showToast(options: ToastOptions): void;
+
+    const Menu: {
+        Menu: React.FC<any>;
+        MenuItem: React.FC<any>;
+        MenuGroup: React.FC<any>;
+        MenuSeparator: React.FC<any>;
+        MenuCheckboxItem: React.FC<any>;
+        MenuRadioItem: React.FC<any>;
+        MenuText: React.FC<any>;
+        MenuSearch: React.FC<any>;
+        MenuControlItem: React.FC<any>;
+    };
+
+    const RestAPI: {
+        get(options: {
+            url: string;
+            query?: Record<string, any>;
+        }): Promise<{ body: any; status: number }>;
+        post(options: {
+            url: string;
+            body?: any;
+            query?: Record<string, any>;
+        }): Promise<{ body: any; status: number }>;
+        patch(options: {
+            url: string;
+            body?: any;
+            query?: Record<string, any>;
+        }): Promise<{ body: any; status: number }>;
+        put(options: {
+            url: string;
+            body?: any;
+            query?: Record<string, any>;
+        }): Promise<{ body: any; status: number }>;
+        delete(options: {
+            url: string;
+            body?: any;
+            query?: Record<string, any>;
+        }): Promise<{ body: any; status: number }>;
+        del(options: {
+            url: string;
+            body?: any;
+            query?: Record<string, any>;
+        }): Promise<{ body: any; status: number }>;
+    };
+
+    const GuildStore: {
+        getGuild(guildId: string): any;
+        getGuilds(): Record<string, any>;
+        getMutableGuilds(): Record<string, any>;
+    };
+
+    const GuildRoleStore: {
+        getSortedRoles(guildId: string): any[];
+        getRoles(guildId: string): Record<string, any>;
+    };
+
+    const GuildChannelStore: {
+        getChannels(guildId: string): any;
+        getMutableGuildChannelsForGuild(guildId: string): Record<string, any>;
+        getChannel(channelId: string): any;
+    };
+
+    const UserStore: {
+        getCurrentUser(): any;
+        getUser(userId: string): any;
+        getUsers(): Record<string, any>;
+    };
+
+    const SearchableSelect: React.FC<any>;
+
+    const Checkbox: React.FC<any>;
+
+    const Select: React.FC<any>;
+
+    const Slider: React.FC<any>;
+
+    const ColorPicker: React.FC<any>;
+
+    // Minimal shape of Vencord's re-exported ReactDOM (only what we use).
+    // Declared inline because @types/react-dom is not a dependency here.
+    const ReactDOM: {
+        createPortal(node: React.ReactNode, container: Element | DocumentFragment): React.ReactNode;
+    };
+
+    const NavigationRouter: {
+        transitionTo(path: string): void;
+        back(): void;
+        forward(): void;
+    };
+
+    const ChannelStore: {
+        getChannel(channelId: string): any;
+        getChannels(guildId: string): any;
+    };
+
+    const InviteActions: {
+        resolveInvite(
+            code: string,
+            context: string
+        ): Promise<{ invite: { guild: { id: string }; channel: { id: string } } | null }>;
+    };
+
+    const Parser: {
+        parse(input: string, allowLinks?: boolean): React.ReactNode;
+    };
+
+    export {
+        React,
+        ReactDOM,
+        Modal,
+        ConfirmModal,
+        Menu,
+        RestAPI,
+        GuildStore,
+        GuildRoleStore,
+        GuildChannelStore,
+        UserStore,
+        SearchableSelect,
+        Checkbox,
+        Select,
+        Slider,
+        ColorPicker,
+        NavigationRouter,
+        ChannelStore,
+        InviteActions,
+        Parser,
+    };
+}

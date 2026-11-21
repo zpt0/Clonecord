@@ -1,0 +1,53 @@
+name: Feature Request
+description: Suggest a new feature or improvement for Clonecord
+labels: ["enhancement"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for suggesting a feature. Please describe your idea in detail.
+
+    - type: textarea
+      id: description
+      attributes:
+          label: Description
+          description: A clear and concise description of the feature you'd like.
+          placeholder: Describe the feature...
+      validations:
+          required: true
+
+    - type: textarea
+      id: use-case
+      attributes:
+          label: Use Case
+          description: Why do you need this feature? What problem does it solve?
+          placeholder: Describe the use case...
+      validations:
+          required: true
+
+    - type: textarea
+      id: solution
+      attributes:
+          label: Proposed Solution
+          description: If you have a specific implementation in mind, describe it here.
+          placeholder: Describe your proposed solution...
+      validations:
+          required: false
+
+    - type: textarea
+      id: alternatives
+      attributes:
+          label: Alternatives Considered
+          description: Have you considered any alternative solutions or workarounds?
+          placeholder: Describe any alternatives...
+      validations:
+          required: false
+
+    - type: textarea
+      id: context
+      attributes:
+          label: Additional Context
+          description: Add any other context, screenshots, or mockups about the feature request.
+          placeholder: Add any additional context...
+      validations:
+          required: false

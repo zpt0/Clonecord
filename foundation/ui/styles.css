@@ -1,0 +1,326 @@
+.vpf-card {
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+    background: var(--background-secondary, rgba(0, 0, 0, 0.16));
+    padding: 12px;
+}
+
+.vpf-card-title {
+    margin-bottom: 8px;
+}
+
+.vpf-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vpf-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vpf-status-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+}
+
+.vpf-status-label {
+    opacity: 0.75;
+}
+
+.vpf-status-value {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.vpf-tone-ok {
+    color: var(--green-360, #23a55a);
+}
+
+.vpf-tone-warn {
+    color: var(--yellow-300, #f0b232);
+}
+
+.vpf-tone-error {
+    color: var(--red-400, #f23f43);
+}
+
+.vpf-settings-outline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+}
+
+.vpf-outline-title {
+    margin-bottom: 4px;
+}
+
+.vpf-outline-section {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-top: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06));
+}
+
+.vpf-outline-section-name {
+    font-weight: 600;
+}
+
+.vpf-outline-section-keys {
+    text-align: right;
+    opacity: 0.8;
+}
+
+.vpf-about-note {
+    margin-top: 8px;
+    opacity: 0.7;
+}
+
+.vpf-author-card {
+    border-color: var(--brand-experiment, var(--background-modifier-accent));
+}
+
+.vpf-author-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.vpf-author-row:hover .vpf-author-name {
+    color: var(--text-link, var(--brand-experiment, #5865f2));
+}
+
+.vpf-author-avatar {
+    display: block;
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.vpf-author-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vpf-author-name {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.vpf-author-hint,
+.vpf-author-extra {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.vpf-author-extra {
+    margin-top: 8px;
+}
+
+.vpf-plugin-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.vpf-tone-neutral {
+    color: var(--text-muted);
+}
+
+.vpf-log-toolbar,
+.vpf-update-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.vpf-log-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.vpf-log-filter,
+.vpf-log-clear,
+.vpf-copy-button,
+.vpf-check-updates {
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+    border-radius: 6px;
+    background: var(--background-tertiary, rgba(0, 0, 0, 0.24));
+    color: var(--text-normal);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.vpf-log-filter-active {
+    border-color: var(--brand-experiment, #5865f2);
+    color: var(--text-link, #00a8fc);
+}
+
+.vpf-check-updates:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.vpf-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 320px;
+    overflow-y: auto;
+    font-family: var(--font-code, monospace);
+    font-size: 12px;
+}
+
+.vpf-log-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 2fr);
+    gap: 6px;
+    align-items: baseline;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: var(--background-primary, rgba(0, 0, 0, 0.12));
+}
+
+.vpf-log-level {
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.vpf-log-level-debug {
+    color: #6c7086;
+}
+
+.vpf-log-level-info {
+    color: #a6d189;
+}
+
+.vpf-log-level-warn {
+    color: #e5c890;
+}
+
+.vpf-log-level-error {
+    color: #e78284;
+}
+
+.vpf-log-time,
+.vpf-log-scope {
+    opacity: 0.7;
+    overflow-wrap: anywhere;
+}
+
+.vpf-log-message,
+.vpf-log-details {
+    overflow-wrap: anywhere;
+}
+
+.vpf-log-details,
+.vpf-log-folded {
+    grid-column: 1 / -1;
+    opacity: 0.7;
+}
+
+.vpf-log-empty,
+.vpf-update-hint {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vpf-patch-status,
+.vpf-update-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vpf-patch-meta,
+.vpf-update-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.vpf-patch-state {
+    font-weight: 700;
+}
+
+.vpf-patch-version,
+.vpf-update-version {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vpf-patch-row,
+.vpf-update-row-line {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 8px;
+    font-size: 12px;
+}
+
+.vpf-patch-row > :first-child,
+.vpf-update-row-line > :first-child {
+    opacity: 0.7;
+}
+
+.vpf-patch-card .vpf-copy-button {
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
+.vpf-update-badge {
+    border-radius: 4px;
+    background: var(--green-360, #23a55a);
+    color: #11111b;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+}
+
+.vpf-update-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+    border-radius: 8px;
+}
+
+.vpf-update-links {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+}
+
+.vpf-update-links a {
+    color: var(--text-link, #00a8fc);
+}
+
+.vpf-update-notes {
+    font-size: 12px;
+    white-space: pre-wrap;
+    opacity: 0.8;
+}
