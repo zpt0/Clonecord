@@ -83,10 +83,14 @@ jobs:
                   ZIP: ${{ steps.notes.outputs.zip_name }}
                   NOTES: ${{ steps.notes.outputs.notes_file }}
               run: |
-                  gh release create "$TAG" "$ZIP" \
-                    --repo "$GITHUB_REPOSITORY" \
-                    --title "$TITLE" \
-                    --notes-file "$NOTES" \
-                    --verify-tag
+                  if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                    echo "Release $TAG already exists; leaving it unchanged."
+                  else
+                    gh release create "$TAG" "$ZIP" \
+                      --repo "$GITHUB_REPOSITORY" \
+                      --title "$TITLE" \
+                      --notes-file "$NOTES" \
+                      --verify-tag
+                  fi
             - name: Show release notes
               run: cat "${{ steps.notes.outputs.notes_file }}" >> "$GITHUB_STEP_SUMMARY"
