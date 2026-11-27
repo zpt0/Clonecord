@@ -12,6 +12,11 @@ import { settings } from "./settings";
 import { CloneModal } from "./components/CloneModal";
 import { ClonecordUnifiedSettings } from "./components/UnifiedSettings";
 import { cloneServer } from "./core/clone";
+import {
+    canOpenSupportInvite,
+    checkSupportServerMembership,
+    resetSupportServerMembership,
+} from "./supportServer";
 
 function ClonecordIcon({ size = 18 }: { size?: number }) {
     return (
@@ -75,12 +80,22 @@ export default definePlugin({
     settingsAboutComponent: () => <ClonecordUnifiedSettings />,
     managedStyle: foundationManagedStyle,
     patches: patchManifest.toVencordPatches("Clonecord"),
+    // Members must never be sent to the support invite, even if a legacy
+    // setting or a stale localStorage flag says otherwise.
+    canOpenSupportInvite,
+    flux: {
+        CONNECTION_OPEN() {
+            checkSupportServerMembership();
+        },
+    },
 
     start() {
+        checkSupportServerMembership();
         void startRuntime();
     },
 
     stop() {
+        resetSupportServerMembership();
         return stopRuntime();
     },
 

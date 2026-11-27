@@ -40,7 +40,7 @@ No standalone Phase 1 analysis file was present in `Vencord-Plugin-Foundation`. 
 - Description: `Clone servers with channels, roles, permissions, and community features`
 - Authors: `zpt0.dev`, id `299670891875270656n`
 - Tags: `["Utility", "Customisation"]`
-- Plugin version constant: `0.1.0`
+- Plugin version constant: `0.1.1`
 - Update URLs/repo/support invite constants unchanged.
 
 ### Settings
